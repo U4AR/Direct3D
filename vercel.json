@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "npm ci",
+  "buildCommand": "npm test && npm run build && cd dist/vad && ls | grep -vE '^(ort-wasm-simd-threaded(\\.jsep)?\\.(mjs|wasm)|silero_vad_(v5|legacy)\\.onnx|vad\\.worklet\\.bundle\\.min\\.js)$' | xargs -r rm -f",
+  "outputDirectory": "dist",
+  "headers": [
+    { "source": "/vad/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }] }
+  ]
+}
