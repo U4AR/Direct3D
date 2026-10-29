@@ -1,0 +1,25 @@
+{
+  "name": "draw3d-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "node scripts/copy-vad.mjs && vite build",
+    "predev": "node scripts/copy-vad.mjs",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --test tests/depth.test.mjs tests/bridge.test.mjs tests/input.test.mjs tests/speech.test.mjs",
+    "test:browser": "playwright test",
+    "reconstruct": "node scripts/reconstruct.mjs",
+    "bridge": "node scripts/model-bridge.mjs"
+  },
+  "dependencies": {
+    "@ricky0123/vad-web": "0.0.30",
+    "fflate": "0.8.3",
+    "three": "0.180.0"
+  },
+  "devDependencies": {
+    "vite": "6.4.4",
+    "@playwright/test": "1.56.1"
+  }
+}

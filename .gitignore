@@ -1,0 +1,12 @@
+node_modules/
+dist/
+public/vad/
+.env
+.env.local
+test-results/
+playwright-report/
+sessions/
+*.pem
+*.log
+__pycache__/
+*.pyc
