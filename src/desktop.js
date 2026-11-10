@@ -1,5 +1,6 @@
 import {planeDrawingSafety} from './desktop-plane-safety.js';
 import {initDesktopMouse} from './desktop-mouse.js';
+import {initDesktopViewCube} from './desktop-view-cube.js';
 
 import {initDesktopAppearance} from './desktop-appearance.js';
 
@@ -153,6 +154,7 @@ async function openDesktop({detail:{studio,store}}) {
 
  studio.returnToModelView=()=>view(false);studio.prepareForVR=studio.returnToModelView;view(false);initDesktopPlanes(studio,store);initDesktopSketches(studio,store);initDesktopAppearance(studio,store);initDesktopPlaneView({studio,store,isFlat:()=>flat,setSketchCamera:(center,plane,nextSpan)=>{flat=false;sketchSpan=nextSpan;studio.camera=sketchCamera;sketchCamera.zoom=1;sketchCamera.up.fromArray(plane.yAxis);const normal=new T.Vector3(...plane.normal),contextPoints=(studio.surfaceModels?.()||[]).filter(m=>!m.hidden&&m.mesh.visible).flatMap(m=>{const b=new T.Box3().setFromObject(m.mesh);return b.isEmpty()?[]:[b.min.x,b.max.x].flatMap(x=>[b.min.y,b.max.y].flatMap(y=>[b.min.z,b.max.z].map(z=>new T.Vector3(x,y,z))));}),depths=contextPoints.map(p=>p.clone().sub(center).dot(normal)),distance=Math.max(2,sketchSpan*3,...depths.map(d=>d+1));sketchCamera.near=.001;sketchCamera.far=Math.max(100,distance-Math.min(0,...depths)+10);sketchCamera.position.copy(center).addScaledVector(normal,distance);sketchCamera.lookAt(center);studio.controls.object=sketchCamera;syncOrbitUp();studio.controls.target.copy(center);studio.controls.enableRotate=true;studio.controls.enabled=true;studio.controls.update();studio.resize();sketchCamera.updateMatrixWorld(true);$('#desktop-flat').classList.remove('selected');$('#desktop-3d').classList.add('selected');studio.desktopSelection?.sync();badge();},returnTo3D:()=>view(false)});initDesktopMouse({studio,store,isFlat:()=>flat});await studio.modelsReady;await studio.desktopHistory?.ready;document.body.dataset.desktopReady='true';if(decisionLab){const {initDecisionSketchLab}=await import('./decision-sketch-lab.js');await initDecisionSketchLab({studio,store});}
 
+ initDesktopViewCube(studio);
  document.querySelector('#app').inert=false;
  delete document.body.dataset.opening;
 }

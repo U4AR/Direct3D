@@ -14,6 +14,12 @@ workspace per account and a maximum of two active users. Credentials are kept
 on the server. The application source is available under **PolyForm
 Noncommercial 1.0.0**; independently licensed components retain their licenses.
 
+Use the view cube in the upper-right of the desktop viewport to drag the view
+around the current center. Click a cube face or choose Front, Back, Top, Bottom,
+Left or Right for a standard view; the home button restores an isometric view.
+Keyboard users can focus the cube and use the arrow keys or Home. View changes
+preserve geometry and zoom.
+
 ## Server modeling (Blender + FreeCAD)
 
 The production backend runs Blender 4.5.9 LTS and FreeCAD 1.1.4 in separate Linux containers. Desktop and Quest display the same native results after each AI or manual operation. Voice audio and drawings go directly to the model with measured scene context; no transcription service is required. Features, dimensions, undo/history and native/interchange exports are supported. See [server deployment](deploy/README.md), [container configuration](compose.yaml) and [open-source notices](deploy/OPEN-SOURCE.md). For a remote Quest use the authenticated HTTPS deployment. The local development instructions below remain available.
