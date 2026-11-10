@@ -74,7 +74,7 @@ export function initPartWorkspace({studio,store,card}){
  const selection=studio.desktopSelectionChanged;studio.desktopSelectionChanged=s=>{selection?.(s);if(s?.nativeBodyId)editBody(s.nativeBodyId);};
  let lastParts;
  function renderParts(){
-  const solids=store.session.desktopSolids||[],native=(studio.surfaceModels?.()||[]).filter(m=>!m.hidden&&!solids.some(s=>s.bodyId===m.nativeId||s.id===m.id)),locked=!!studio.aiDraftReview?.active||!!studio.decisionLab?.busy,signature=JSON.stringify([locked,solids.map(s=>[s.id,s.version,s.name,s.figureIds]),native.map(m=>[m.id,m.version,m.name])]);
+  const models=studio.surfaceModels?.()||[],solids=(store.session.desktopSolids||[]).filter(s=>models.some(m=>!m.hidden&&(s.bodyId===m.nativeId||s.id===m.id))),native=models.filter(m=>!m.hidden&&!solids.some(s=>s.bodyId===m.nativeId||s.id===m.id)),locked=!!studio.aiDraftReview?.active||!!studio.decisionLab?.busy,signature=JSON.stringify([locked,solids.map(s=>[s.id,s.version,s.name,s.figureIds]),native.map(m=>[m.id,m.version,m.name])]);
   if(signature===lastParts)return;lastParts=signature;partList.replaceChildren();
   if(!solids.length&&!native.length){const empty=document.createElement('p');empty.textContent='No solid bodies';partList.append(empty);}
   for(const solid of solids){
