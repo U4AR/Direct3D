@@ -2,7 +2,7 @@
 export const SUPERVISION_LEVELS=['high','balanced','low'];
 export const SUPERVISION_LABELS={high:'High · ask about assumptions',balanced:'Balanced · ask important questions',low:'Low · ask only if blocked'};
 export const SUPERVISION_HELP={high:'Ask before choosing uncertain dimensions, placement, symmetry or other design intent. Clear instructions and obvious pen cleanup can proceed.',balanced:'Use obvious CAD relationships and editable assumptions; ask when ambiguity would substantially change the design.',low:'Choose reasonable editable assumptions and continue. Ask only when conflicting requirements or essential missing information prevent a valid result.'};
-export const normalizeSupervision=value=>SUPERVISION_LEVELS.includes(value)?value:'balanced';
+export const normalizeSupervision=value=>SUPERVISION_LEVELS.includes(value)?value:'low';
 const policies={
  high:'HIGH SUPERVISION: Ask one focused question before resolving an unspecified design choice or consequential assumption, including uncertain symmetry axis/plane, meaningful inferred dimensions or feature placement. Do not treat silence as approval. Apply explicitly supplied choices and obvious pen-jitter cleanup without repeatedly asking for the same permission. Preserve known perpendicularity/symmetry while asking only about what remains uncertain.',
  balanced:'BALANCED SUPERVISION: Infer obvious perpendicularity, symmetry, alignment and minor dimensions/placement from the evidence, and state meaningful editable assumptions. Ask the user when plausible interpretations would substantially change topology, function, main dimensions, symmetry structure or the relationship between views/parts. Do not ask routine confirmation for a clearly intended circle, rectangle or square corner.',

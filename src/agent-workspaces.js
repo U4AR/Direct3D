@@ -864,7 +864,7 @@ export function initAgentWorkspaces(studio, store, cad, notice, addTranscript) {
       case "draw3d_context":
         return {
           ...cad.context(),
-          supervision:studio.aiSupervision?.evidence()||{level:'balanced'},
+          supervision:studio.aiSupervision?.evidence()||{level:'low'},
           spatialDrawing:spatialWorkflow?{fit:spatialWorkflow.result,figures:store.session.spatialObjects,featureWeights:spatialWorkflow.weights}:undefined,
           capabilities:{spatialTools:true,objectManipulation:true,strokeReferences:true,spatialDrawing:!!spatialWorkflow,drawingTools:!!drawingTools},
           strokeWorkflow:studio.strokeWorkflow?.summary(),

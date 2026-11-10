@@ -33,4 +33,9 @@ export function updateDecisionSketch(args,evidence){
  }else throw Error('Unknown constrained sketch operation');
  verifyDecisionFigure(edit,s);return edit;
 }
-export function validateDecisionSketchEdits(edit,evidence){for(const e of edit.edits||[]){const s=evidence.decisionSketches?.find(s=>s.figureId===e.figureId);if(e.operation==='update'&&s)verifyDecisionFigure(e,s);}}
+export function validateDecisionSketchEdits(edit,evidence){
+ const changes=edit.sketchConstraintEdits||[];if(!Array.isArray(changes)||changes.length>16)throw Error('Invalid sketch constraint updates');const seen=new Set();
+ for(const change of changes){const s=evidence.decisionSketches?.find(s=>s.figureId===change.figureId),f=evidence.figures.find(f=>f.id===change.figureId),e=edit.edits?.find(e=>e.operation==='update'&&e.figureId===change.figureId);if(!s||!f||!e||seen.has(f.id)||change.expectedVersion!==f.version||e.expectedVersion!==f.version||!change.constraints||typeof change.constraints!=='object'||!['circle','rectangle','line','arc','ellipse','profile'].includes(change.kind))throw Error('Constraint changes must accompany one current sketch geometry update');seen.add(f.id);verifyDecisionFigure(e,change);}
+ for(const e of edit.edits||[]){const s=changes.find(s=>s.figureId===e.figureId)||evidence.decisionSketches?.find(s=>s.figureId===e.figureId);if(e.operation==='update'&&s)verifyDecisionFigure(e,s);}
+ return changes;
+}

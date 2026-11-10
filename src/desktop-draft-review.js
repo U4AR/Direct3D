@@ -14,16 +14,16 @@ export function createDraftSession(store,{capture,restore,changed=()=>{},decisio
  async function accept(){if(!active||busy||!active.dirty)return false;const current=active;active=null;delete store.session.aiPendingDraft;store.session.acceptedAIRuns??=[];for(const id of current.runIds)if(!store.session.acceptedAIRuns.includes(id))store.session.acceptedAIRuns.push(id);try{await store.flush();}catch(error){active=current;store.session.acceptedAIRuns=store.session.acceptedAIRuns.filter(id=>!current.runIds.has(id));throw error;}store.log('ai.preview.accepted',{id:current.id,runIds:[...current.runIds]});changed();await decision([...current.runIds],true);return true;}
  async function discard(){if(!active||busy)return false;const current=active,asset=await store.get('assets',[store.session.id,current.baseSceneAsset]);if(!asset)throw Error('The saved design snapshot is missing; keep the preview and export this session.');const base=copy(current.base);base.transcripts=copy(store.session.transcripts);base.aiActivity=copy(store.session.aiActivity);for(const key of ['decisionInstruction','decisionCases','decisionDrawingView'])if(key in store.session)base[key]=copy(store.session[key]);base.strokes=[...current.inputs.values()].map(copy);await restore(base,JSON.parse(await asset.blob.text()));active=null;recovering=false;delete store.session.aiPendingDraft;store.log('ai.preview.discarded',{id:current.id,runIds:[...current.runIds]});await store.flush();changed();await decision([...current.runIds],false);return true;}
  async function recover(){if(!saved)return;const base=clean(store.session),asset=await store.get('assets',[store.session.id,saved.baseSceneAsset]);if(!asset)throw Error('The preview base is missing; export before editing.');const draft=copy(saved.session),modelAsset=draft.sharedModels?await store.get('assets',[store.session.id,draft.sharedModels]):null;active={id:saved.id,dirty:saved.dirty!==false,base,baseSceneAsset:saved.baseSceneAsset,runIds:new Set(saved.runIds),inputs:new Map((saved.inputStrokes||base.strokes).map(s=>[s.id,copy(s)]))};await restore(draft,{document:saved.document,models:modelAsset?JSON.parse(await modelAsset.blob.text()):JSON.parse(await asset.blob.text()).models});recovering=false;store.log('ai.preview.restored',{id:active.id});changed();}
- async function checkpoint(){
-  if(!active||!active.dirty)return null;
-  return {draftId:active.id,runIds:new Set(active.runIds),session:clean(store.session),scene:await capture()};
+ async function checkpoint({includeClean=false}={}){
+  if(!active||!active.dirty&&!includeClean)return null;
+  return {draftId:active.id,dirty:active.dirty,runIds:new Set(active.runIds),session:clean(store.session),scene:await capture()};
  }
  async function restoreCheckpoint(point){
   if(!point||point.draftId!==active?.id)throw Error('The working preview has changed');
   const snapshot=point.session,known=new Set(snapshot.strokes.map(s=>s.id));
   for(const stroke of active.inputs.values())if(!known.has(stroke.id))snapshot.strokes.push(copy(stroke));
   for(const key of [...recordingKeys,'decisionInstruction','decisionCases','decisionDrawingView'])if(key in store.session)snapshot[key]=copy(store.session[key]);
-  await restore(snapshot,point.scene);active.runIds=point.runIds;await store.flush();changed();
+  await restore(snapshot,point.scene);active.runIds=point.runIds;active.dirty=point.dirty??active.dirty;await store.flush();changed();
  }
  return {begin,accept,discard,recover,persisted,checkpoint,restoreCheckpoint,markApplied(){if(active){active.dirty=true;changed();}},get recovering(){return recovering;},get hasChanges(){return !!active?.dirty;},setBusy(value){busy=!!value;changed();},get active(){return !!active;},get busy(){return busy;},get runIds(){return active?[...active.runIds]:[];}};
 }

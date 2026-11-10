@@ -16,6 +16,12 @@ export function nativeApplicationRecovery(run,data){
 }
 export function rejectRepeatedNativeOperation(edit,run){for(const e of edit.modelEdits||[])if(run.nativeRejections?.includes(nativeEditSignature(e)))throw Error('This exact native operation was already rejected by the CAD engine. Change the cause using current geometry and failure feedback, or ask the user; do not repeat it unchanged.');}
 
+export function cadApplicationRecovery(run,data){
+ if(!data.error||data.stopForUserInput||data.appliedCount||data.review||data.applicationFailure?.kind!=='cad_rejection'||data.applicationFailure.unchanged!==true||run.edit?.modelEdits?.length||!(run.edit?.edits?.length||run.edit?.solidEdits?.length)||(run.nativeRecoveryCount||0)>=NATIVE_RECOVERY_LIMIT)return null;
+ run.nativeRecoveryCount=(run.nativeRecoveryCount||0)+1;
+ return {kind:'cad_operation_feedback',attempt:run.nativeRecoveryCount,maxAttempts:NATIVE_RECOVERY_LIMIT,error:String(data.error).slice(0,2000),attemptedEdit:structuredClone(run.edit),unchanged:true,appliedCount:0,instruction:'The rejected sketch/solid step was rolled back; earlier successful work remains. Inspect current curve geometry and the exact diagnostics, correct the cause and continue the original goal. For a self-intersecting profile, regularize the existing curve with bounded smooth joins before retrying extrusion, or use a valid native construction with the same intended outline. For representation changes use an appropriate editable construction. Do not repeat the same failed parameters or report this failed step complete. Ask only for genuinely indispensable design information.'};
+}
+
 export function contextApplicationRecovery(run,data){
  if(!data.error||data.stopForUserInput||data.appliedCount||data.review||data.applicationFailure?.kind!=='context_changed'||data.applicationFailure.unchanged!==true)return null;
  return {kind:'context_changed',reason:String(data.applicationFailure.reason||'drawing or model').slice(0,200),appliedCount:0,unchanged:true,instruction:'The stale proposal was not applied. Continue the original user request using the newly captured drawing, current geometry and versions. Do not repeat already successful edits. New drawing input is normal, not a CAD failure.'};

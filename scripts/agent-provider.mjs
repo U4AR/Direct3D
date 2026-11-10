@@ -2,6 +2,9 @@ import {sendOpenAIResponse} from './openai-provider.mjs';
 import {sendMetaResponse} from './meta-provider.mjs';
 import {readGeminiStream} from './gemini-stream.mjs';
 import {cloudVertexReady,cloudVertexModel,vertexGenerate} from './vertex-cloud.mjs';
+// Progress messages and the final structured answer are separate output items.
+// Joining them produces invalid JSON even when the final answer is valid.
+export function finalResponseText(response){const messages=(response.output||[]).filter(o=>o.type==='message'),message=messages.findLast(o=>o.phase==='final_answer')||messages.findLast(o=>o.phase!=='commentary');return (message?.content||[]).filter(c=>c.type==='output_text').map(c=>c.text).join('');}
 // Backend-only provider adapter. Never import this module into client code.
 export const VERTEX_DEADLINE=Date.parse('2026-10-16T00:00:00+05:30');
 export function vertexAllowed(now=Date.now()){return process.env.DRAW3D_AGENT_PROVIDER==='vertex-temporary'&&now<VERTEX_DEADLINE;}

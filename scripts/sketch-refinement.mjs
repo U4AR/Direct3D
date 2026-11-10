@@ -23,6 +23,7 @@ import {randomUUID} from 'node:crypto';
 import {mkdir,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {sendOpenAIResponse} from './openai-provider.mjs';
+import {finalResponseText} from './agent-provider.mjs';
 import {speechInkContent,speechMetadata} from './speech-ink-image.mjs';
 import {renderDecisionInk} from './decision-ink-image.mjs';
 import {DESKTOP_EDIT_SCHEMA,validateDesktopEdit} from '../src/desktop-edit-contract.js';
@@ -478,7 +479,7 @@ export async function runSketchRefinement(saved,fit,{fetcher=fetch,recordingId,r
     }
     continue;
    }
-   const output=raw.output?.filter(o=>o.type==='message').flatMap(o=>o.content||[]).filter(c=>c.type==='output_text').map(c=>c.text).join('');if(!output)throw Error('Model returned no refinement JSON');
+   const output=finalResponseText(raw);if(!output)throw Error('Model returned no refinement JSON');
    try {
     const plan=JSON.parse(output);
     if(plan.question?.trim()&&!questionReviewed){
