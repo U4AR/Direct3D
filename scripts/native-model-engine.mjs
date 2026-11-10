@@ -3,14 +3,14 @@ import {createInterface} from 'node:readline';
 import {mkdir,readFile,writeFile,access,rename} from 'node:fs/promises';
 import path from 'node:path';import {fileURLToPath} from 'node:url';import {randomUUID,createHash} from 'node:crypto';
 import {validateBlenderParameters} from '../src/blender-contract.js';
-export function createNativeModelEngine({key,name,executable,argumentsForWorker,worker,operations,nativeFormat,formats,guiExecutable}){
+export function createNativeModelEngine({key,name,executable,argumentsForWorker,worker,operations,nativeFormat,formats,guiExecutable,environment=()=>({})}){
 const root=()=>path.resolve(process.env.SESSION_DIR||'sessions','modeling',key);
 let child,readyPromise,version,serial=Promise.resolve();const pending=new Map();let stderr='',queued=0;
 function failure(error){for(const item of pending.values()){clearTimeout(item.timer);item.reject(error);}pending.clear();readyPromise=undefined;version=undefined;}
 async function start(){
  if(readyPromise)return readyPromise;
  readyPromise=new Promise((resolve,reject)=>{
-  let settled=false;const proc=child=spawn(executable(),argumentsForWorker(worker),{windowsHide:true,env:{...process.env,PYTHONIOENCODING:'utf-8'}});
+  let settled=false;const proc=child=spawn(executable(),argumentsForWorker(worker),{windowsHide:true,env:{...process.env,...environment(),PYTHONIOENCODING:'utf-8'}});
   const timer=setTimeout(()=>{proc.kill();reject(Error('Native engine startup timed out'));readyPromise=undefined;},20000);
   proc.stderr.on('data',b=>stderr=(stderr+b).slice(-4000));
   createInterface({input:proc.stdout}).on('line',line=>{

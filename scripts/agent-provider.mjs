@@ -1,14 +1,15 @@
 import {sendOpenAIResponse} from './openai-provider.mjs';
 import {sendMetaResponse} from './meta-provider.mjs';
 import {readGeminiStream} from './gemini-stream.mjs';
+import {cloudVertexReady,cloudVertexModel,vertexGenerate} from './vertex-cloud.mjs';
 // Backend-only provider adapter. Never import this module into client code.
 export const VERTEX_DEADLINE=Date.parse('2026-10-16T00:00:00+05:30');
 export function vertexAllowed(now=Date.now()){return process.env.DRAW3D_AGENT_PROVIDER==='vertex-temporary'&&now<VERTEX_DEADLINE;}
 const aiStudio=()=>process.env.DRAW3D_AGENT_PROVIDER==='gemini';
 const geminiKey=()=>process.env.GEMINI_AGENT_API_KEY||process.env.GEMINI_API_KEY;
 const vertexExpress=()=>process.env.DRAW3D_AGENT_PROVIDER==='vertex-express';
-export const selectedModel=()=>process.env.DRAW3D_AGENT_PROVIDER==='meta'?(process.env.META_AGENT_MODEL||'muse-spark-1.3'):aiStudio()?(process.env.GEMINI_AGENT_MODEL||'gemini-3.8-flash'):vertexExpress()?(process.env.VERTEX_AGENT_MODEL||'gemini-3.8-flash'):vertexAllowed()?'gemini-3.8-flash':process.env.OPENAI_AGENT_MODEL||'gpt-6-luna';
-export const providerReady=()=>!!(process.env.DRAW3D_AGENT_PROVIDER==='meta'?process.env.META_API_KEY:aiStudio()?geminiKey():(vertexExpress()||vertexAllowed())?process.env.VERTEX_AGENT_API_KEY:process.env.OPENAI_API_KEY);
+export const selectedModel=()=>process.env.DRAW3D_AGENT_PROVIDER==='meta'?(process.env.META_AGENT_MODEL||'muse-spark-1.3'):aiStudio()?(process.env.GEMINI_AGENT_MODEL||'gemini-3.8-flash'):vertexExpress()?(process.env.VERTEX_AGENT_MODEL||'gemini-3.8-flash'):vertexAllowed()?'gemini-3.8-flash':!process.env.OPENAI_API_KEY&&cloudVertexReady()?cloudVertexModel():process.env.OPENAI_AGENT_MODEL||'gpt-6-luna';
+export const providerReady=()=>!!(process.env.DRAW3D_AGENT_PROVIDER==='meta'?process.env.META_API_KEY:aiStudio()?geminiKey():(vertexExpress()||vertexAllowed())?process.env.VERTEX_AGENT_API_KEY:process.env.OPENAI_API_KEY||cloudVertexReady());
 export function vertexContents(input){
  const contents=[],calls=new Map();let pendingResponse;
  const append=(role,parts)=>{if(!parts.length)return;const last=contents.at(-1);if(role==='user'&&last?.role===role)last.parts.push(...parts);else contents.push({role,parts});};
@@ -56,18 +57,22 @@ export function vertexResponseSchema(schema,depth=0,maxDepth=2){
 }
 async function sendAgentResponse(fetcher,body,signal){
  if(process.env.DRAW3D_AGENT_PROVIDER==='meta')return sendMetaResponse(fetcher,body,signal);
- if(!body.model.startsWith('gemini-'))return sendOpenAIResponse(fetcher,body,signal);
+ if(!body.model.startsWith('gemini-')){
+  if(!process.env.OPENAI_API_KEY&&cloudVertexReady())return sendAgentResponse(fetcher,{...body,model:cloudVertexModel()},signal);
+  try{const response=await sendOpenAIResponse(fetcher,body,signal);if(cloudVertexReady()&&[408,429,500,502,503,504].includes(response.status))return sendAgentResponse(fetcher,{...body,model:cloudVertexModel()},signal);return response;}
+  catch(error){if(signal?.aborted||!cloudVertexReady())throw error;return sendAgentResponse(fetcher,{...body,model:cloudVertexModel()},signal);}
+ }
  // Check every request, including retries and child runs. Never send to the temporary model after expiry.
- if(!aiStudio()&&!vertexExpress()&&!vertexAllowed()){const e=Error('Temporary Gemini access ended at midnight on October 16, Asia/Kolkata. Start a new run to use the normal backend.');e.code='PROVIDER_EXPIRED';throw e;}
+ if(!aiStudio()&&!vertexExpress()&&!vertexAllowed()&&!cloudVertexReady()){const e=Error('Temporary Gemini access ended at midnight on October 16, Asia/Kolkata. Start a new run to use the normal backend.');e.code='PROVIDER_EXPIRED';throw e;}
  const key=aiStudio()?geminiKey():process.env.VERTEX_AGENT_API_KEY;
- if(!key)throw Error(aiStudio()?'AI Studio backend key is missing':'Vertex backend key is missing');
+ if(!key&&!cloudVertexReady())throw Error(aiStudio()?'AI Studio backend key is missing':'Vertex backend key is missing');
  const streaming=aiStudio()&&!body.tools?.length&&typeof body.onProgress==='function';
  let url=aiStudio()?`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(body.model)}:generateContent`:vertexExpress()?`https://aiplatform.googleapis.com/v1/publishers/google/models/${encodeURIComponent(body.model)}:generateContent`:'https://aiplatform.googleapis.com/v1/projects/speakup-copilot-2026/locations/global/publishers/google/models/gemini-3.8-flash:generateContent';
  if(streaming)url=url.replace(':generateContent',':streamGenerateContent?alt=sse');
  const request={systemInstruction:{parts:[{text:body.instructions}]},contents:vertexContents(body.input),generationConfig:{maxOutputTokens:body.max_output_tokens||8192,thinkingConfig:{thinkingLevel:({low:'LOW',medium:'MEDIUM',high:'HIGH'})[body.reasoning?.effort]||'MEDIUM'}},...(body.tools?.length?{toolConfig:{functionCallingConfig:{mode:'VALIDATED'}},tools:[{functionDeclarations:body.tools.map(t=>({name:t.name,description:t.description,parameters:t.parameters}))}]}:{})};
  if(body.text?.format?.type==='json_schema'){request.generationConfig.responseMimeType='application/json';const schema=structuredClone(body.text.format.schema);if(aiStudio()&&/^(gemini-4-argon|gemini-3\.8-flash)/.test(body.model)){const params=schema.properties?.edits?.items?.properties?.parameters?.anyOf?.find(p=>p.type==='object');if(params)delete params.required;request.generationConfig.responseJsonSchema=vertexResponseSchema(schema,0,12);}else request.generationConfig.responseJsonSchema=vertexResponseSchema(schema);request.systemInstruction.parts.push({text:'Return a complete JSON object following the configured response schema. Use null for unused values, include all required fields and do not add metadata keys.'});}
  if(aiStudio()&&process.env.GEMINI_AGENT_SERVICE_TIER)request.service_tier=process.env.GEMINI_AGENT_SERVICE_TIER;
- const response=await fetcher(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},signal,body:JSON.stringify(request)});
+ const response=cloudVertexReady()&&!aiStudio()&&!vertexExpress()?await vertexGenerate(request,{fetcher,signal,model:body.model}):await fetcher(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},signal,body:JSON.stringify(request)});
  const data=streaming&&response.ok?await readGeminiStream(response,body.onProgress,signal):await response.json();return {ok:response.ok,status:response.status,json:async()=>response.ok?{...(data.error?{status:'failed',error:data.error,output:[]}:normalizeVertex(data)),providerTier:response.headers?.get?.('x-gemini-service-tier')||data.usageMetadata?.serviceTier||null}:data};
 }
 
@@ -76,7 +81,7 @@ async function sendAgentResponse(fetcher,body,signal){
 export async function fetchAgentResponse(fetcher,body,signal=new AbortController().signal,timeoutMs=120000){
  signal.throwIfAborted();
  const controller=new AbortController();let timer,abort;
- const expires=body.model?.startsWith('gemini-')&&!aiStudio()&&!vertexExpress()?VERTEX_DEADLINE:Infinity;
+ const expires=body.model?.startsWith('gemini-')&&!aiStudio()&&!vertexExpress()&&!cloudVertexReady()?VERTEX_DEADLINE:Infinity;
  const waiting=new Promise((_,reject)=>{
   abort=()=>{controller.abort(signal.reason);reject(signal.reason);};signal.addEventListener('abort',abort,{once:true});
   timer=setTimeout(()=>{const error=Error(Date.now()>=expires?'Temporary Gemini access expired':'Model request timed out');error.code=Date.now()>=expires?'PROVIDER_EXPIRED':'MODEL_TIMEOUT';controller.abort(error);reject(error);},Math.max(1,Math.min(timeoutMs,expires-Date.now())));

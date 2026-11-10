@@ -1,0 +1,15 @@
+steps:
+  - id: gateway
+    name: gcr.io/cloud-builders/docker
+    args: [build, -f, deploy/cloud/Dockerfile.gateway, -t, us-central1-docker.pkg.dev/$PROJECT_ID/draw3d/gateway:20261110, .]
+    waitFor: ['-']
+  - id: worker
+    name: gcr.io/cloud-builders/docker
+    args: [build, -f, deploy/cloud/Dockerfile.worker, -t, us-central1-docker.pkg.dev/$PROJECT_ID/draw3d/worker:20261110, .]
+    waitFor: ['-']
+images:
+  - us-central1-docker.pkg.dev/$PROJECT_ID/draw3d/gateway:20261110
+  - us-central1-docker.pkg.dev/$PROJECT_ID/draw3d/worker:20261110
+timeout: 2400s
+options:
+  logging: CLOUD_LOGGING_ONLY

@@ -1,4 +1,5 @@
 import {serverCadJob} from './cad-server-jobs.mjs';
+import {cloudVertexReady} from './vertex-cloud.mjs';
 import {saveActivity,recentActivity} from './session-activity.mjs';
 import {classifySketchSpeech} from './sketch-speech-intent.mjs';
 import {runExistingSketchEdit} from './existing-sketch-edit.mjs';
@@ -273,7 +274,7 @@ export async function handleAgent(req, res) {
       if(route.startsWith('concept-')){
         if(!CONCEPT_MODE()&&route!=='concept-transcribe')throw Error('Concept workflow is available in the Terra version');
         if(route==='concept-restore'){validateDesktopEvidence(data.evidence);const concept=conceptWorkflow.restore(s.id,{snapshot:data.snapshot,evidence:data.evidence,recordingId:s.recordingId});send(res,200,{concept});return true;}
-        if(!process.env.OPENAI_API_KEY)throw Error('OpenAI backend key is missing');
+        if(!process.env.OPENAI_API_KEY&&!(route==='concept-transcribe'&&cloudVertexReady()))throw Error('OpenAI backend key is missing');
         let concept;
         if(route==='concept-transcribe'){
           const stream=data.streamTranscript===true&&data.sketchSpeech===true;

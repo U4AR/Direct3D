@@ -1,0 +1,15 @@
+# Google Cloud deployment
+
+Draw3D uses a public sign-in gateway and a separate private Cloud Run service for each Google subject. The gateway checks a Google ID token (audience, issuer, signature, expiry, verified email and nonce) and an invitation passcode. It issues a signed HttpOnly, Secure, SameSite cookie. Every write requires the configured same origin. The server ignores client-supplied workspace identities and supplies its own platform identity to the private worker.
+
+Each worker has one instance maximum and zero minimum instances, its own restricted Cloud Storage prefix, a separate app process and separate native Blender/FreeCAD processes. Browser IndexedDB names also include the signed-in user's workspace namespace. Gateway traffic and worker traffic use request-based CPU billing. Cold starts are expected after inactivity. Storage, image hosting, builds, network and model calls can still incur usage charges. The default invitation capacity is ten workspaces; increase `MAX_WORKSPACES` on the gateway deliberately when needed.
+
+OpenAI remains the primary provider with the existing model defaults. Its key is mounted from Secret Manager as `/run/secrets/openai/key`, loaded only by the backend. Google Cloud Vertex AI is the fallback when the key is absent or the primary provider has a transient failure. No user API key belongs in an image, browser bundle, source file or build argument. Secret changes require rolling the worker revisions because the backend reads its key on startup.
+
+Build `deploy/cloud/cloudbuild.yaml` with the prepared `public/cad`, `public/sculpt`, fonts and PDF viewer assets. The source upload excludes credentials, private recordings, build caches and Git metadata. Native runtime downloads use the pinned SHA-256 values from the existing Linux deployment.
+
+The gateway needs `GOOGLE_CLIENT_ID`, `PUBLIC_ORIGIN`, `GOOGLE_CLOUD_PROJECT`, `CLOUD_REGION`, `WORKER_IMAGE`, `WORKER_SERVICE_ACCOUNT`, `WORKSPACE_BUCKET`, plus `SESSION_SIGNING_KEY` and `PASSCODE_HASH` supplied by Secret Manager. `PASSCODE_HASH` is a salted scrypt hash of an 8–12 digit invitation code. The worker service account has no public invoker binding. Grant invocation to the gateway service account, storage access only to the dedicated workspace bucket, and secret access only to the required named secrets. Cloud Run also requires the gateway, as the worker deployer, to have Artifact Registry Reader on the deployment image repository.
+
+The existing Vercel deployment is a separate static preview; this Google Cloud stack runs the native engines and backend. Do not copy a user's old recordings or credentials into a new tenant.
+
+Checks: `npm test`, `node --test tests/vertex-cloud-fallback.test.mjs`, `node --test deploy/cloud/auth.test.mjs deploy/cloud/gateway.test.mjs`, and `npm run build` with the prepared assets. Use synthetic geometry for a live native smoke test and verify anonymous API requests get rejected before sharing the URL.

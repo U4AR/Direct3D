@@ -1,5 +1,6 @@
 // Server-only concept review; no CAD mutation before explicit user confirmation.
 import {readProvider} from './provider-read.mjs';
+import {cloudVertexReady,vertexTranscript} from './vertex-cloud.mjs';
 import {createHash,randomUUID} from 'node:crypto';
 export const CONCEPT_MODE=()=>process.env.DRAW3D_CREATION_WORKFLOW==='concepts';
 export const CONCEPT_IMAGE_MODEL=()=>process.env.DRAW3D_CONCEPT_IMAGE_MODEL||'gpt-image-2.5-flare';
@@ -33,6 +34,7 @@ async function readTranscript(response,onTranscript) {
  return final;
 }
 export async function transcribeConceptAudio(inputs,{fetcher=fetch,signal,sketchSpeech=false,onTranscript,onRetry}={}){
+ if(!process.env.OPENAI_API_KEY&&cloudVertexReady())return vertexTranscript(inputs,{fetcher,signal,onTranscript});
  if(!Array.isArray(inputs)||inputs.length>8)throw Error('Invalid concept audio inputs');const parts=[];
  for(const a of inputs){if(a?.mimeType!=='audio/wav'||typeof a.audio!=='string'||a.audio.length>12000000||!/^[A-Za-z0-9+/]+={0,2}$/.test(a.audio))throw Error('Invalid concept WAV recording');
  const form=new FormData();form.set('model',process.env.DRAW3D_TRANSCRIPTION_MODEL||'gpt-transcribe');form.set('file',new Blob([Buffer.from(a.audio,'base64')],{type:'audio/wav'}),'instruction.wav');

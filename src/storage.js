@@ -3,7 +3,7 @@ import {migrateActivityDetails} from './activity-summary.js';
 import { zipSync, strToU8 } from "fflate";
 export class SessionStore {
   constructor(onStatus, { namespace = "draw3d" } = {}) {
-    this.namespace = namespace;
+    this.namespace = globalThis.DRAW3D_USER_NAMESPACE ? `${namespace}.${globalThis.DRAW3D_USER_NAMESPACE}` : namespace;
     this.onStatus = onStatus;
     this.pending = [];
     this.started = performance.now();
