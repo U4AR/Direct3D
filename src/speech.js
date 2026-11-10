@@ -2,6 +2,7 @@ import {savedMicrophoneInput,saveMicrophoneInput} from './microphone-input.js';
 import { encodeWav } from "./audio.js";
 
 import { createLevelVAD } from "./level-vad.js";
+import {startVoiceDetector} from './voice-detector.js';
 
 // ONNX caches an initialization failure for the lifetime of the page.
 let neuralVADUnavailable=false;
@@ -70,6 +71,7 @@ export class SpeechCapture {
         },
       });
       this.retainedStream=null;
+      this.onDiagnostics({phase:'captured',status:'Microphone access granted · preparing voice detection…',level:0,probability:0,speaking:false});
       this.inputLabel=this.stream.getAudioTracks()[0]?.label||"system default";
       const captureStream = this.stream;
       for(const track of this.stream.getAudioTracks()) {
@@ -158,22 +160,9 @@ export class SpeechCapture {
         },
       };
       if(!neuralVADUnavailable){
-        try{
-          const {createMicVAD}=await import("./vad.js");
-          this.vad=await createMicVAD(vadOptions);
-          await this.vad.start();
-        }catch(error){
-          const reason=String(error?.message??error);
-          if(!/out of memory|no available backend found|initWasm\(\).*failed|WebAssembly.Memory.*allocat/i.test(reason))throw error;
-          neuralVADUnavailable=true;
-          this.store.log("microphone.vad-unavailable",{detector,reason});
-          if(this.vad){
-            try{await this.vad.destroy();}catch(cleanup){this.store.log("microphone.cleanup-error",{action:"release neural detector",message:cleanup.message});}
-            this.vad=null;
-          }
-        }
-      }
-      if(neuralVADUnavailable){
+        const selected=await startVoiceDetector({loadNeural:async()=>{const {createMicVAD}=await import('./vad.js');return createMicVAD(vadOptions);},makeFallback:()=>createLevelVAD(vadOptions),onFallback:error=>{neuralVADUnavailable=true;this.store.log('microphone.vad-unavailable',{detector,reason:String(error?.message??error)});this.onDiagnostics({phase:'captured',status:'Microphone allowed · starting lightweight voice detection…',level:0});}});
+        this.vad=selected.vad;detector=selected.detector;
+      }else{
         detector='audio-level';
         this.vad=createLevelVAD(vadOptions);
         await this.vad.start();
@@ -198,6 +187,7 @@ export class SpeechCapture {
         directModelAudio: true,
       });
       this.listeningStatus();
+      this.onDiagnostics({phase:'listening',status:'Listening · '+this.inputLabel,level:0,probability:0,speaking:false,detector});
     } catch (error) {
       await this.stop({preserveStream:/fetch|dynamically imported|network/i.test(error.message)});
       if(/fetch|dynamically imported|network/i.test(error.message)) {

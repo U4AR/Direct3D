@@ -421,7 +421,7 @@ export function initAgentWorkspaces(studio, store, cad, notice, addTranscript) {
       if (mode !== userWorkspace) backgroundFrame(frame);
       frame.src = mode === "cad" ? "/cad/index.html" : "/sculpt/index.html";
     }
-    const deadline = Date.now() + 60000;
+    const deadline = Date.now() + 180000;
     while (!frame.contentWindow?.[key] || (mode === "sculpt" && sculptRestoring)) {
       if (Date.now() > deadline) throw Error(mode + " editor did not load");
       await sleep(150);

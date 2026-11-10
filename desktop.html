@@ -8,12 +8,13 @@
   <style>
     html { background: #111820 }
     body[data-opening] > :not(#desktop-opening) { opacity: 0 !important; pointer-events: none !important }
-    #desktop-opening { position: fixed; inset: 0; display: grid; place-content: center; margin: 0; padding: 2rem; background: #111820; color: #e6e9ec; font: 15px system-ui,sans-serif }
+    #desktop-opening { position: fixed; inset: 0; display: grid; place-content: center; justify-items:center;text-align:center;gap:16px; margin: 0; padding: 2rem; background: radial-gradient(ellipse at center,#19333b,#111820 65%); color: #e6e9ec; font: 15px system-ui,sans-serif }
+    #desktop-opening strong{font-size:26px;letter-spacing:-.02em}#desktop-opening p{max-width:420px;color:#a8c4ce;line-height:1.6;margin:0}.loading-spinner{width:34px;height:34px;border:3px solid #a4e6d133;border-top-color:#a4e6d1;border-radius:50%;animation:loading-spin 1s linear infinite}@keyframes loading-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.loading-spinner{animation:none;border-style:dotted}}
     body:not([data-opening]) > #desktop-opening { display: none }
   </style>
 </head>
 <body class="desktop-studio" data-opening>
-  <p id="desktop-opening" role="status">Opening drawing…</p>
+  <section id="desktop-opening" role="status" aria-live="polite"><span class="loading-spinner" aria-hidden="true"></span><strong>Opening your workspace</strong><p id="opening-detail">Loading drawing tools and your saved project…</p></section>
   <div id="app" inert></div>
   <script type="module" src="/src/desktop.js" onerror="document.getElementById('desktop-opening').textContent='Could not load the drawing workspace. Reload to retry.'"></script>
 </body>

@@ -407,6 +407,10 @@ async function init() {
     (diagnostics) => {
       studio.setVoiceState(diagnostics);
       window.dispatchEvent(new CustomEvent("draw3d-microphone-state",{detail:diagnostics}));
+      if(diagnostics.phase==='starting'){$('#mic').textContent='Requesting microphone…';$('#mic').dataset.micState='requesting';}
+      if(diagnostics.phase==='captured'){$('#mic').textContent='Microphone allowed · starting…';$('#mic').dataset.micState='captured';}
+      if(['listening','no-signal'].includes(diagnostics.phase)){$('#mic').textContent='◼ Stop microphone';$('#mic').setAttribute('aria-pressed','true');$('#mic').dataset.micState='listening';}
+      if(['off','error'].includes(diagnostics.phase))$('#mic').dataset.micState=diagnostics.phase;
       updateMicRecovery(diagnostics);
       microphoneSession?.update(diagnostics);
       if(diagnostics.phase==="listening"&&speech?.active){$("#mic").textContent="◼ Stop microphone";$("#mic").setAttribute("aria-pressed","true");}

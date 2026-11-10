@@ -10,6 +10,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "node --test tests/depth.test.mjs tests/bridge.test.mjs tests/input.test.mjs tests/speech.test.mjs tests/sketch-reference.test.mjs tests/projection.test.mjs tests/plane-fitting.test.mjs tests/primitive-fitting.test.mjs tests/projection-mesh.test.mjs tests/sketch-analysis.test.mjs tests/path-mesh.test.mjs tests/math-expression.test.mjs tests/surface-math.test.mjs tests/model-pattern.test.mjs tests/stroke-variables.test.mjs tests/constrained-curve.test.mjs tests/model-spatial.test.mjs tests/object-grab.test.mjs tests/design-frame.test.mjs tests/pentagon.test.mjs tests/stroke-fitting.test.mjs tests/agent-provider.test.mjs tests/ai-studio-provider.test.mjs tests/vertex-express.test.mjs tests/rapid-construction.test.mjs tests/xr-calibration.test.mjs tests/desktop-topology.test.mjs tests/spatial-fitting.test.mjs tests/spatial-mask-fit.test.mjs tests/voice-ai-commands.test.mjs tests/stroke-archive.test.mjs && npm run test:workflow",
     "test:browser": "playwright test",
+    "test:startup": "node --test tests/cad-readiness.test.mjs tests/voice-detector.test.mjs",
     "reconstruct": "node scripts/reconstruct.mjs",
     "bridge": "node scripts/model-bridge.mjs",
     "cad:setup": "powershell -NoProfile -File scripts/setup-full-cad.ps1",

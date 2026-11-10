@@ -6,20 +6,7 @@ const googleHost=document.querySelector('#google');
 let opening=false;
 async function enter(){
  if(opening)return;opening=true;form.hidden=true;googleHost.hidden=true;
- try{
-  for(let i=0;i<120;i++){
-   status.textContent="You're signed in. Opening your private workspace…";
-   try{
-    const r=await fetch('/auth/workspace',{credentials:'same-origin'}),data=await r.json();
-    if(r.status===401){location.reload();return;}
-    if(r.ok&&data.ready){location.replace('/desktop.html');return;}
-    if(!r.ok&&r.status!==503)throw Error(data.error||'Workspace could not start.');
-   }catch(error){if(i===119)throw error;}
-   await new Promise(resolve=>setTimeout(resolve,2500));
-  }
-  status.textContent="You're signed in. Your workspace is still starting. Refresh this page in a minute; you don't need to enter the passcode again.";
- }catch(error){status.textContent="You're signed in, but the workspace could not start. Refresh to retry. "+error.message;}
- finally{opening=false;}
+ status.textContent="You're signed in. Opening your private workspace…";location.replace('/open');
 }
 async function start(){
  const existing=await fetch('/auth/me');if(existing.ok){await enter();return;}

@@ -25,19 +25,19 @@
  function repairMessage(){return 'Microphone access is blocked. Open the site controls beside the address bar, set Microphone to Allow, then reload this page. You can also continue by typing.';}
  function updateMic(){
   const button=$('#tour-enable-mic'),message=$('#tour-mic-status'),help=$('#tour-permission-help'),meter=$('#tour-mic-level'),header=$('#draw3d-voice-setup');
-  const active=activeMic(),phase=micState?.phase;
-  if(header)header.hidden=active||read(voiceKey)==='typed';
+  const active=activeMic(),observed=nativeMic()?.dataset.micState,phase=micState?.phase||(observed==='requesting'?'starting':observed);
+  if(header){header.hidden=read(voiceKey)==='typed'&&!active;header.textContent=active?'Mic on':phase==='captured'?'Mic allowed · starting…':permissionState==='granted'?'Start mic':'Enable mic';header.dataset.active=String(active);}
   if(!button||!message)return;
-  const starting=phase==='starting';button.disabled=starting||active;
-  button.textContent=active?'Microphone enabled':starting?'Waiting for microphone…':'Enable microphone';
-  message.textContent=active?'Microphone is on. Say a few words and watch the meter.':starting?'Choose Allow if your browser asks for microphone access.':permissionState==='denied'?'Microphone access is blocked.':phase==='error'?(micState.status||'The microphone could not start.'):'Microphone is off. It will start only when you enable it.';
+  const starting=['starting','captured'].includes(phase);button.disabled=starting;
+  button.textContent=active?'Microphone on · Stop':phase==='captured'?'Microphone allowed · starting…':starting?'Waiting for microphone…':permissionState==='granted'?'Start microphone':'Enable microphone';
+  message.textContent=active?'Microphone is on. Say a few words and watch the meter.':phase==='captured'?(micState.status||'Microphone access granted. Preparing voice detection…'):starting?'Choose Allow if your browser asks for microphone access.':permissionState==='denied'?'Microphone access is blocked.':phase==='error'?(micState.status||'The microphone could not start.'):permissionState==='granted'?'Microphone permission is granted. Start it when you want to speak.':'Microphone is off. It will start only when you enable it.';
   if(help){help.hidden=permissionState!=='denied'&&phase!=='error';help.textContent=permissionState==='denied'||/denied|permission|notallowed/i.test(micState?.status||'')?repairMessage():'Check that a microphone is connected and selected under Settings → Microphone & transcripts, then try again. You can keep using typed instructions.';}
   if(meter)meter.value=Math.max(0,Math.min(1,Number(micState?.level)||0));
  }
  function enableMic(){
   save(voiceKey,'voice');const mic=nativeMic();
   if(!mic){micState={phase:'error',status:'The workspace microphone control is not ready yet.'};updateMic();return;}
-  if(activeMic()){updateMic();return;}
+  if(activeMic()){mic.click();updateMic();return;}
   // Use the app's capture handler synchronously inside this real click gesture.
   // It owns the stream, audio context, device choice and reconnection preference.
   mic.click();updateMic();
@@ -84,8 +84,8 @@
   const host=$('.header-actions')||$('header')||document.body;
   const help=node('button','','Tutorial');help.id='draw3d-help';help.type='button';help.title='Open the getting-started cards';help.onclick=()=>show();
   const voice=node('button','','Enable mic');voice.id='draw3d-voice-setup';voice.type='button';voice.onclick=()=>{show(1);};host.append(help,voice);
-  window.addEventListener('draw3d-microphone-state',event=>{micState=event.detail;updateMic();});
-  const observer=new MutationObserver(()=>updateMic());if(nativeMic())observer.observe(nativeMic(),{attributes:true,attributeFilter:['aria-pressed','disabled']});
+  window.addEventListener('draw3d-microphone-state',event=>{micState=event.detail;if(['captured','listening','no-signal'].includes(micState?.phase))permissionState='granted';updateMic();});
+  const observer=new MutationObserver(()=>updateMic());if(nativeMic())observer.observe(nativeMic(),{attributes:true,attributeFilter:['aria-pressed','disabled','data-mic-state']});
   window.addEventListener('pagehide',()=>observer.disconnect(),{once:true});void refreshPermission();
   if(read(stateKey))return;
   fetch('/learn/visit',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.ok?r.json():{firstVisit:true}).then(data=>{if(data.firstVisit&&!closed)show();}).catch(()=>{if(!read(stateKey))show();});

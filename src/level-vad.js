@@ -35,7 +35,7 @@ export function speechSegments(options,{neural=true}={}){
 // One ordered frame stream drives the local model or the low-memory fallback.
 export function createFrameMic(options,score,{neural=false,release}={}){
  const segments=speechSegments(options,{neural});
- let source,node,running=false,draining=null,backlog=[],epoch=0;
+ let source,node,running=false,draining=null,backlog=[],epoch=0,destroyed=false;
  async function processFrame(frame){
   const token=epoch,probability=await score(frame);
   if(!running||token!==epoch)return;
@@ -55,7 +55,9 @@ export function createFrameMic(options,score,{neural=false,release}={}){
   processFrame,
   async start(){
    const ctx=options.audioContext,stream=await options.getStream();
+   if(destroyed)return;
    await ctx.audioWorklet.addModule('/vad/vad.worklet.bundle.min.js');
+   if(destroyed)return;
    node=new AudioWorkletNode(ctx,'vad-helper-worklet',{processorOptions:{frameSamples:512}});
    running=true;
    node.port.onmessage=({data})=>{
@@ -69,7 +71,7 @@ export function createFrameMic(options,score,{neural=false,release}={}){
    };
    source=ctx.createMediaStreamSource(stream);source.connect(node);node.connect(ctx.destination);
   },
-  pause,async destroy(){await pause();await release?.();}
+  pause,async destroy(){if(destroyed)return;destroyed=true;await pause();await release?.();}
  };
 }
 
