@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+.secrets
+.runtime
+.build
+node_modules
+dist
+sessions
+artifacts
+vendor
+test-results
+playwright-report
+public/vad
+
+.cache

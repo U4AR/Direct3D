@@ -1,0 +1,6 @@
+# Optional OFFLINE generated-image extraction/reporting tools. Not server dependencies.
+Pillow==12.2.0
+numpy==1.26.4
+opencv-python-headless==4.10.0.84
+scikit-image==0.22.0
+matplotlib==3.8.0

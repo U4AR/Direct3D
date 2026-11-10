@@ -1,0 +1,4 @@
+// IndexedDB serialization runs off the XR/render thread. Messages are ordered.
+const databases=new Map();let chain=Promise.resolve();
+function open(name){if(!databases.has(name))databases.set(name,new Promise((resolve,reject)=>{const r=indexedDB.open(name,1);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);}));return databases.get(name);}
+self.onmessage=({data})=>{chain=chain.catch(()=>{}).then(async()=>{try{const db=await open(data.name),snapshot=data.snapshot?JSON.parse(data.snapshot):null;await new Promise((resolve,reject)=>{const tx=db.transaction(snapshot?['events','sessions']:['events'],'readwrite');for(const e of data.batch)tx.objectStore('events').put(e);if(snapshot)tx.objectStore('sessions').put(snapshot);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||Error('Storage transaction aborted'));});self.postMessage({id:data.id});}catch(error){self.postMessage({id:data.id,error:error.message});}});};

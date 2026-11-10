@@ -1,0 +1,38 @@
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+// Paid stress evaluation. No truth labels, family names or generation prompts go to the API.
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {runSketchDecisions} from './decision-sketch-api.mjs';
+import {deviation,pathDistance,resample} from '../src/decision-sketch/math.js';
+import {validateDesktopEdit} from '../src/desktop-edit-contract.js';
+const directory='tests/fixtures/cad-robustness-v2/',fixture=JSON.parse(await readFile(directory+'cases.json','utf8')),output='artifacts/cad-robustness-v2/';await mkdir(output,{recursive:true});
+const execute=process.argv.includes('--execute'),only=process.argv.find(s=>s.startsWith('--only='))?.slice(7),variant=process.argv.find(s=>s.startsWith('--run='))?.slice(6)||'baseline',guided=process.argv.includes('--guided');
+const uv=(p,f)=>[f.xAxis,f.yAxis].map(a=>a.reduce((n,v,k)=>n+(p[k]-f.origin[k])*v,0));
+const area=p=>Math.abs(p.reduce((n,a,i)=>{const b=p[(i+1)%p.length];return n+a[0]*b[1]-a[1]*b[0];},0)/2);
+function inside(p,poly){let yes=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if((a[1]>p[1])!==(b[1]>p[1])&&p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0])yes=!yes;}return yes;}
+export function assessCADCase(c,result){
+ const figures=result.results.filter(r=>!r.construction),paths=figures.map(r=>r.pathWorld.map(p=>uv(p,c.plane))),closed=figures.map((r,i)=>r.constraints.closed?i:-1).filter(i=>i>=0),areas=paths.map(area),depths=closed.map(i=>closed.filter(j=>areas[j]>areas[i]*1.03&&resample(paths[i],24).every(p=>inside(p,paths[j]))).length),holes=depths.filter(d=>d%2).length;
+ const metrics={components:figures.length,closed:closed.length,holes,circles:figures.filter(r=>r.kind==='circle').length,maxInkErrorFraction:Math.max(...figures.map(r=>r.metrics.relativeMax)),truth:[]};
+ if(c.truth?.length){const scores=[];for(let i=0;i<c.truth.length;i++)for(let j=0;j<paths.length;j++){const ideal=c.truth[i].points.map(p=>uv(p,c.plane)),d=deviation(ideal,paths[j],figures[j].constraints.closed);scores.push({i,j,...d});}scores.sort((a,b)=>a.rms-b.rms);const usedA=new Set(),usedB=new Set();
+  for(const match of scores){if(usedA.has(match.i)||usedB.has(match.j))continue;usedA.add(match.i);usedB.add(match.j);const t=c.truth[match.i],f=figures[match.j],ideal=t.points.map(p=>uv(p,c.plane)),xs=ideal.map(p=>p[0]),ys=ideal.map(p=>p[1]),span=Math.hypot(Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys)),center=t.centerWorld,centerError=center&&f.kind==='circle'?Math.hypot(...f.frame.origin.map((v,k)=>v-center[k])):null;
+   const curveErrors=(t.curveFeatures||[]).map(feature=>Math.max(...feature.points.map(p=>pathDistance(uv(p,c.plane),paths[match.j])))/feature.radiusMetres);
+   metrics.truth.push({curveErrors,id:t.id,resultIndex:match.j,expectedKind:t.kind,actualKind:f.kind,hole:t.hole,maxErrorFraction:match.max/span,rmsMetres:match.rms,diameterErrorFraction:t.radiusMetres&&f.kind==='circle'?Math.abs(f.primitive.radius-t.radiusMetres)/t.radiusMetres:null,centerErrorFraction:t.radiusMetres&&centerError!==null?centerError/(2*t.radiusMetres):null});
+  }
+ }
+ const checks={localCurvePreservation:metrics.truth.some(t=>t.curveErrors?.length)?metrics.truth.every(t=>t.curveErrors.every(e=>e<=.2)):null,accidentalMarks:c.accidentalInputIndices?c.accidentalInputIndices.every(i=>!result.results.some(r=>r.sourceStrokeIds.includes('ink-'+i))):null,componentCount:metrics.components===c.expected.components,closedLoops:metrics.closed===c.expected.components,holeContainment:holes===c.expected.holes,circularFeatures:metrics.circles===c.expected.circles,inkContour:c.truth?.length?null:metrics.maxInkErrorFraction<=.06,truthContour:metrics.truth.length?metrics.truth.length===c.truth.length&&metrics.truth.every(t=>t.maxErrorFraction<=.06):null,diameters:metrics.truth.length?metrics.truth.filter(t=>t.expectedKind==='circle').every(t=>t.diameterErrorFraction!==null&&t.diameterErrorFraction<=.05):null,holeCenters:metrics.truth.length?metrics.truth.filter(t=>t.expectedKind==='circle').every(t=>t.centerErrorFraction!==null&&t.centerErrorFraction<=.05):null,profileTypes:metrics.truth.length?metrics.truth.every(t=>t.expectedKind===t.actualKind):null};
+ try{validateDesktopEdit({summary:'CAD stress audit',assumptions:[],question:null,edits:result.edits,modelEdits:[],solidEdits:[],requestedSketchIds:[],requestedStrokeArchiveIds:[],voiceControl:null,automation:null,continuation:null},{strokes:c.strokes.map((s,i)=>({...s,id:'ink-'+i})),figures:[],models:[],sketchCatalog:[],defaultPlane:c.plane});checks.nativeContract=true;}catch(e){checks.nativeContract=false;metrics.nativeError=e.message;}
+ return {metrics,checks,pass:Object.values(checks).every(v=>v!==false)};
+}
+export async function evaluate(){
+const report={version:2,run:variant,at:new Date().toISOString(),warning:fixture.warning,protocol:{modelLabelsHidden:true,oneAttemptPerCase:true,shapeToleranceFraction:.06,circleDiameterToleranceFraction:.05,holeCenterToleranceOfDiameter:.05,realHumanData:false},results:[]};
+for(const c of fixture.cases.filter(c=>!only||only.split(',').includes(c.id))){
+ const row={id:c.id,family:c.family,variant:c.variant,guided,source:c.source,expected:c.expected,strokeCount:c.strokes.length};report.results.push(row);
+ if(execute){const strokes=c.strokes.map((s,i)=>({...s,id:'ink-'+i})),data={strokes,plane:c.plane,image:'data:image/png;base64,'+(await readFile(directory+c.image)).toString('base64'),prompt:guided?({'six-bolt-flange':'A circular flange with six circular bolt holes and a round central bore. My strokes have pen-lift gaps: close every outline and keep the holes circular.','slotted-plate':'A rounded rectangular plate, a horizontal rounded-end slot and four circular corner holes. My pen strokes have gaps; all outlines should be closed. Preserve the rounded corners.','connecting-link':'A dog-bone connecting link with two circular bores. My strokes have gaps; close all outlines and preserve both rounded outer ends.','filleted-step-bracket':'A stepped L bracket with one rounded inside corner and three circular mounting holes. The pen gaps are accidental; close all outlines and retain the rounded corner.'}[c.family]):'Clean up this planar engineering sketch. Preserve the intended rounded and sharp features, separate outlines, holes, proportions, and locations. Do not add thickness or create 3D geometry.'};
+  try{row.result=await runSketchDecisions(data);Object.assign(row,assessCADCase(c,row.result));}catch(e){row.error=e.message;row.pass=false;}
+ }
+ report.summary={cases:report.results.length,completed:report.results.filter(r=>r.result).length,pass:report.results.filter(r=>r.pass).length,knownCostUSD:report.results.reduce((n,r)=>n+(r.result?.cost.usd||0),0),unknownUsage:report.results.filter(r=>r.error||!r.result?.cost.usageKnown).length,byVariant:Object.fromEntries([...new Set(report.results.map(r=>r.variant))].map(v=>{const rows=report.results.filter(r=>r.variant===v);return [v,{cases:rows.length,completed:rows.filter(r=>r.result).length,pass:rows.filter(r=>r.pass).length}];}))};await writeFile(output+variant+'.json',JSON.stringify(report,null,2));console.log(JSON.stringify({id:c.id,pass:row.pass,checks:row.checks,actual:row.metrics?{components:row.metrics.components,holes:row.metrics.holes,circles:row.metrics.circles}:null,error:row.error,ms:row.result?.timings.totalMs,usd:row.result?.cost.usd}));
+}
+console.log(JSON.stringify(report.summary));return report;
+}
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))await evaluate();

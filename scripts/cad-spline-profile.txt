@@ -1,0 +1,13 @@
+
+function draw3dSplineProfile(object: SketchRegionObject, resolve: (v: ParamValue)=>number): SketchProfile[]{
+ const data=object.data as any;if(!data.closed)return [];
+ let curves=splineCurves(data,resolve,object.id) as RegionCurve[],polyline=splinePolyline(data,resolve);
+ let area=exactAreaForRegionCurves(curves);if(Math.abs(area)<1e-10)throw Error('Spline encloses no area');
+ if(area<0){curves=curves.reverse().map(reverseRegionCurve);polyline.reverse();area=-area;}
+ // Refuse crossing loops instead of handing an invalid face to the solid kernel.
+ const cross=(a:any,b:any,c:any)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
+ for(let i=0;i<polyline.length;i++)for(let j=i+2;j<polyline.length;j++){if(i===0&&j===polyline.length-1)continue;const a=polyline[i],b=polyline[(i+1)%polyline.length],c=polyline[j],d=polyline[(j+1)%polyline.length];if(cross(a,b,c)*cross(a,b,d)<-1e-14&&cross(c,d,a)*cross(c,d,b)<-1e-14)throw Error('Spline profile self-intersects');}
+ const outer={curves,polyline},holes:RegionLoop[]=[];const samplePoint=samplePointFor(polyline,[]);if(!samplePoint)throw Error('Spline has no interior');
+ const fingerprint=regionFingerprintOf(outer,holes),centroid=profileCentroid(outer,holes);
+ return [{profileId:'profile_spline_'+object.id+'_'+fingerprint,regionFingerprint:fingerprint,sourceEntityIds:[object.id],outer,holes,signedArea:area,area,centroid,boundingBox:{min:{x:Math.min(...polyline.map(p=>p.x)),y:Math.min(...polyline.map(p=>p.y))},max:{x:Math.max(...polyline.map(p=>p.x)),y:Math.max(...polyline.map(p=>p.y))}},validity:'valid',diagnostics:[],samplePoint,outline:{fidelity:'exact'}}];
+}

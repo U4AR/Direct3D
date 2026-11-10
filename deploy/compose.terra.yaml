@@ -1,0 +1,18 @@
+# Separate edition: docker compose -p draw3d-terra -f compose.yaml -f deploy/compose.terra.yaml up -d --build
+services:
+  app:
+    environment:
+      GEMINI_API_KEY_FILE: null
+      DRAW3D_AGENT_PROVIDER: openai
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+      OPENAI_AGENT_MODEL: gpt-6.1-terra
+      OPENAI_AGENT_REASONING: medium
+      DRAW3D_CREATION_WORKFLOW: concepts
+      DRAW3D_CONCEPT_IMAGE_MODEL: gpt-image-2.5-flare
+      DRAW3D_TRANSCRIPTION_MODEL: gpt-transcribe
+    secrets: !override
+      - openai_api_key
+      - modeling_token
+secrets:
+  openai_api_key:
+    file: .secrets/openai_api_key

@@ -1,0 +1,6 @@
+import {writeFile} from 'node:fs/promises';
+import {makeDrawingExample} from '../src/drawing-examples.js';
+import {cuboidStrokes,sphereStrokes,cylinderStrokes,helixStroke,sheetStrokes} from '../tests/spatial-fixtures.mjs';
+import {triangleExtrusion,turnedPart,filletExample} from '../tests/recognition-fixtures.mjs';
+const cases=[['Noisy rotated cuboid','cuboid',cuboidStrokes()],['Spherical loops','sphere',sphereStrokes()],['Cylinder rims and generator','cylinder',cylinderStrokes()],['Spiral cylinder envelope','cylinder',[helixStroke()]],['Triangular extruded profile','profileExtrusion',triangleExtrusion()],['Varying coaxial sections','revolved',turnedPart()],['Bounded curved sheet','splineSurface',sheetStrokes()]];
+const examples=cases.map(([label,expectedKind,strokes])=>makeDrawingExample({label,expectedKind,strokes,notes:'Synthetic regression fixture; not a human demonstration.'}));const fillet=filletExample();examples.push(makeDrawingExample({label:'Inside perpendicular corner',expectedKind:'fillet',...fillet,notes:'Synthetic arc with exact nearby topology.'}));const file=process.argv[2]||'artifacts/drawing-fit-synthetic-corpus.json';await writeFile(file,JSON.stringify({schema:'draw3d.drawing-examples.v1',synthetic:true,examples},null,2));console.log('Wrote '+examples.length+' synthetic examples to '+file);

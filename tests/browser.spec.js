@@ -150,3 +150,16 @@ test("local Silero v5 initializes and processes silent audio frames", async ({
   expect(result.frames).toBeGreaterThanOrEqual(8);
   expect(result.speech).toBe(0);
 });
+
+test("a second tab cannot overwrite the active local drawing", async ({ page, context }) => {
+  await page.goto("http://localhost:5173");
+  await expect(page.locator("#save-status")).toHaveText("Saved on this device");
+  await page.locator("#demo").click();
+  await expect(page.locator("#geometry-count")).toContainText("15 strokes");
+  const other = await context.newPage();
+  await other.goto("http://localhost:5173");
+  await expect(other.locator("#notice")).toContainText("already open in another tab");
+  await other.close();
+  await page.reload();
+  await expect(page.locator("#geometry-count")).toContainText("15 strokes");
+});

@@ -1,0 +1,10 @@
+import * as T from 'three';
+import {initConceptPicker} from '../src/concept-picker.js';
+const c=document.createElement('canvas');c.width=c.height=16;const image=c.toDataURL('image/png');
+const originalGoal='Make this a jug. Make a jug which gives water. Clarification: Pouring spout';
+const evidence={strokes:[{id:'ink'}],models:[{id:'jug',version:3}]},snapshot={version:1,recordingId:'test-record',prompt:'Product visualisation',originalGoal,goalPrompts:[{id:'goal',text:originalGoal}],evidence,job:{id:'old-job',status:'awaiting_selection',selected:null,candidates:[0,1,2].map(id=>({id,label:'Design '+id,status:'ready',image}))}};
+const assets=new Map([['concepts/pending-review.json',new Blob([JSON.stringify(snapshot)])]]);
+window.testCalls=[];window.confirmed=[];window.testStore={session:{id:'test-record',pendingConceptReview:{asset:'concepts/pending-review.json',id:'old-job',originalGoal}},get:async(_,key)=>({blob:assets.get(key[1])}),asset:async(key,blob)=>assets.set(key,blob),flush:async()=>{}};
+const studio={scene:new T.Scene(),renderer:{xr:{isPresenting:false}},modelAgentEvidence:async()=>structuredClone(evidence)};let job;
+window.addEventListener('draw3d-concept-restored-confirmed',e=>confirmed.push(e.detail));
+window.testPicker=initConceptPicker({studio,store:testStore,request:async(route,data)=>{testCalls.push({route,data});if(route==='concept-restore')job={...structuredClone(snapshot.job),id:'new-owned-job',prompt:originalGoal,requestContext:null,events:[{message:'Explicitly confirm again'}]};if(route==='concept-select')job={...job,selected:data.candidateId};if(route==='concept-confirm')job={...job,status:'confirmed',confirmedAt:Date.now()};return {concept:job};}});await testPicker.restorePending();

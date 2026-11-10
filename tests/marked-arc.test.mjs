@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {markedArcOperations} from '../scripts/marked-arc.mjs';
+import {speechInkContent,speechMetadata} from '../scripts/speech-ink-image.mjs';
+const radius=.1,point=(t,r=radius)=>[r*Math.cos(t),r*Math.sin(t),0];
+const base={kind:'arc',operation:'create',radiusMetres:radius,startAngleDeg:32,endAngleDeg:118,origin:[0,0,0],xAxis:[1,0,0],yAxis:[0,1,0],strokeIds:['base']};
+const strokes=[{id:'base',points:[point(.56),point(1),point(2.06)]},{id:'in',points:[point(.72),point(.82,.078),point(.94)]},{id:'out',points:[point(1.72),point(1.82,.12),point(1.92)]}];
+const fit={results:strokes.map(s=>({id:s.id,sourceStrokeIds:[s.id],frame:{normal:[0,0,1]}})),edits:[base,{operation:'create'},{operation:'create'}]};
+const spec={host:'base',span:'semicircle-preserve-radius',name:'Detailed arc',closeWithDiameter:false,details:[{guide:'in',direction:'inward',shape:'angular'},{guide:'out',direction:'outward',shape:'rounded'}]};
+test('an inward notch and outward bump replace regions of a single semicircular perimeter',()=>{
+ const [host,...guides]=markedArcOperations({markedArc:spec},fit,{strokes});
+ const e=host.replacement,segs=e.segments;
+ assert.deepEqual(guides.map(g=>[g.referenceId,g.action]),[['in','omit'],['out','omit']]);
+ assert.deepEqual(e.strokeIds,['base','in','out']);
+ assert.deepEqual(segs[0].slice(0,2),[radius,0]);
+ assert.ok(Math.hypot(segs.at(-1)[6]+radius,segs.at(-1)[7])<1e-8);
+ for(let i=1;i<segs.length;i++)assert.ok(Math.hypot(segs[i][0]-segs[i-1][6],segs[i][1]-segs[i-1][7])<1e-8);
+ const samples=segs.map(s=>s.slice(0,2)).map(([x,y])=>[Math.atan2(y,x),Math.hypot(x,y)]);
+ assert.ok(samples.some(([angle,r])=>angle>.72&&angle<.94&&r<.081));
+ assert.ok(samples.some(([angle,r])=>angle>1.72&&angle<1.92&&r>.118));
+ const endpoint=markedArcOperations({markedArc:{...spec,span:'semicircle-preserve-endpoints',details:[]}},fit,{strokes})[0].replacement;
+ assert.equal(endpoint.kind,'arc');assert.ok(Math.abs(endpoint.endAngleDeg-endpoint.startAngleDeg-180)<1e-8);
+ assert.ok(Math.abs(endpoint.radiusMetres-radius*Math.sin(43*Math.PI/180))<1e-9);
+});
+test('spoken panels retain archived ink, identify its transcript, and share no coordinate arrays as text',()=>{
+ const id=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+ const input={audioId:'voice',strokeIds:['out'],text:'Put a bulge here.',guides:[strokes[2]],view:{cameraToWorld:id,projectionMatrix:id,aspect:1}};
+ const content=speechInkContent({speechInputs:[input],strokes:strokes.slice(0,2)});
+ assert.match(content[0].text,/Put a bulge here/);assert.match(content[1].image_url,/^data:image\/png;base64,/);
+ assert.equal(speechMetadata([input])[0].guides,undefined);
+ assert.deepEqual(speechInkContent({speechInputs:[{...input,guides:[],strokeIds:[]}],strokes}),[]);
+});

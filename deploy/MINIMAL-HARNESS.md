@@ -1,0 +1,19 @@
+# Interface and measured harness improvements
+
+The normal interface uses short task labels and collapsed advanced controls. Model/provider details remain in the inspector. Microphone recovery, explicit design confirmation, modeling tools, dimensions and history remain available.
+
+Terra remains the default model at medium reasoning, including specialists. Large Terra response schemas use lossless shared `$defs` in the OpenAI transport; expanding the references reproduces every original operation and constraint exactly. `DRAW3D_COMPACT_SCHEMA=0` disables this optimization for controlled comparisons. Supported references are documented at https://developers.openai.com/api/docs/guides/structured-outputs .
+
+The exact-input comparison in artifacts/terra-compact-harness/README.md used three Terra HTTP requests total across baseline cases and the comparison. The thread response schema shrank 163,104 to 102,698 characters, input tokens 72,886 to 64,272. One comparison improved 15.945 to 14.633 seconds; it does not establish a general latency guarantee. No original user model was edited by these evaluations.
+
+Native evidence now includes exact analytic surface/curve descriptors and trimmed axial spans with verified exterior/cavity roles when determinable. Bounds ignore cached tessellation. This removes the need to infer basic neck dimensions from a long construction history. Read-only export of original logged artifacts preserves IDs, versions, topology and source bytes.
+
+Unchanged native inspection views are cached by model artifact, geometry, placement, visibility and topology selection. Live user POV/ink captures remain fresh. A browser fixture took 360.7 ms for initial native inspection and approximately 0.7 ms on cache hits; actual end-to-end latency still includes fitting, image capture, network and inference. See artifacts/native-view-cache-browser.json.
+
+A valid solid is distinct from mechanical intent. Meta's tested thread was buried inside the cavity; Terra with exact measurements produced external material. The original Terra output still overhung the lip by 0.460 mm because thread height is the helix centerline and the profile extends beyond its ends. The modeling skill now explains conservative end clearance. No completed cap-mating result is claimed.
+
+Pending design choices and questions survive backend updates. Recovery starts from current geometry and preserves completed edits; stale answers cannot replace a newer active task. Tests exercise continuation loss, lost acknowledgements and pending-question reloads.
+
+The actual latest production failure (`3f019c25-8b17-477b-9cd6-27e6441813e2`) was a provider schema-compiler fuel limit before any model edit. History catalog generation incorrectly listed FreeCAD history under the Blender engine too, and emitted a branch per historical feature. Catalogs now bind the correct engine, group matching parameter shapes with exact feature-index enums, and scope Terra/Muse history edits to the focused part. `focus_part` switches history catalogs; direct construction/feature operations remain available. World-frame context does not silently treat the stale last target as the intended history owner. A proposal-only real replay passed HTTP200 with the original input and tools, a 72,023-character schema versus 185,492 and an 8.3 second response. See artifacts/schema-fuel-validation/README.md. No replay geometry was applied to the user's scene.
+
+If a provider still rejects a complex native schema before inference, one bounded automatic retry uses the existing compact JSON-parameter encoding. The harness decodes and performs the same local operation, engine, target, version and geometry checks before publication. This is a transport fallback, not acceptance of an unvalidated action. Current-run packet filtering also prevents stale specialist proposal IDs from an old task being offered to a new task with the same words.

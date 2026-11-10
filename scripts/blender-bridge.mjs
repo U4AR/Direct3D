@@ -1,0 +1,10 @@
+import {proxyNativeModel,nativeRemoteHealth,nativeRemoteRun} from './native-model-proxy.mjs';
+import {fileURLToPath} from 'node:url';
+import {createNativeModelEngine} from './native-model-engine.mjs';
+import {BLENDER_OPERATIONS} from '../src/blender-contract.js';
+const engine=createNativeModelEngine({key:'blender',name:'Blender',executable:()=>process.env.BLENDER_PATH||(process.platform==='win32'?'C:/Program Files/Blender Foundation/Blender 4.0/blender.exe':'/opt/blender/blender'),argumentsForWorker:worker=>['--background','--factory-startup','--disable-autoexec','--threads',process.env.MODELING_THREADS||'2','--python',worker],worker:fileURLToPath(new URL('./blender-worker.py',import.meta.url)),operations:BLENDER_OPERATIONS,nativeFormat:'blend',formats:{blend:'model.blend',glb:'model.glb'}});
+const remote=()=>process.env.BLENDER_SERVICE_URL;
+export const blenderHealth=()=>remote()?nativeRemoteHealth(remote(),'blender'):engine.health();
+export const closeBlender=engine.close,validateBlenderDocument=engine.validateDocument;
+export const runBlenderDocument=document=>remote()?nativeRemoteRun(remote(),'blender',document):engine.run(document);
+export const handleBlender=(req,res)=>remote()?proxyNativeModel(req,res,remote(),'blender'):engine.handle(req,res);

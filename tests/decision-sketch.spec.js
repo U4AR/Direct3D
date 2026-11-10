@@ -1,0 +1,34 @@
+import {buildDecisionRequest,fitDecisionResponse} from '../scripts/decision-sketch-api.mjs';
+import {test,expect} from '@playwright/test';
+test('decision experiment fits, previews, accepts editable geometry, and records the test case',async({page})=>{
+ test.setTimeout(150000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(()=>window.addEventListener('draw3d-ready',e=>window.decisionTest=e.detail));
+ await page.route('https://fonts.googleapis.com/**',r=>r.abort());
+ await page.goto('http://127.0.0.1:5191/desktop.html?experiment=decision&refine=off&session='+crypto.randomUUID(),{waitUntil:'domcontentloaded'});
+ await expect(page.locator('body')).toHaveAttribute('data-decision-ready','true',{timeout:45000});
+ await page.locator('#decision-auto').uncheck();await page.locator('#decision-auto-accept').uncheck();
+ await page.evaluate(()=>{const {studio,store}=decisionTest;const points=Array.from({length:101},(_,i)=>{const a=i*2*Math.PI/100,r=.05*(1+.012*Math.sin(i*2.3));return [r*Math.cos(a),1.15+r*Math.sin(a),-.6];});store.session.strokes.push({id:crypto.randomUUID(),points,started:100,ended:500,drawingPlane:structuredClone(studio.desktopPlane),radius:.001,color:'#80aaff'});studio.addStrokeMesh(store.session.strokes.at(-1));});
+ await page.locator('#decision-instruction').fill('Clean this into a circle');
+ await page.locator('#decision-fit').click();await expect(page.locator('#decision-accept')).toBeEnabled({timeout:30000});
+ const report=await page.evaluate(()=>{const {studio,store}=decisionTest,r=studio.decisionLab.pending;return {kind:r.results[0].kind,cost:r.cost,timings:r.timings,figureCount:studio.desktopDrawing.summary().length,namespace:store.namespace};});
+ expect(report.kind).toBe('circle');expect(report.figureCount).toBe(0);expect(report.namespace).toBe('draw3d-decision-lab');
+ await page.getByText('Model input & output',{exact:true}).click();await page.locator('#decision-inspect').click();await expect(page.locator('#decision-wire')).toContainText('questions');await expect(page.locator('#decision-input-images img')).toHaveCount(2);
+ await page.locator('#decision-accept').click();await expect(page.locator('#decision-status')).toHaveText(/Accepted/, {timeout:75000});
+ const saved=await page.evaluate(async()=>{const {studio,store}=decisionTest;await store.flush();const session=await store.get('sessions',store.session.id);return {figures:studio.desktopDrawing.summary(),savedFigures:session.desktopFigures,metadata:session.decisionSketches,cases:session.decisionCases,strokes:session.strokes};});
+ expect(saved.figures).toHaveLength(1);expect(saved.figures[0].kind).toBe('circle');expect(saved.savedFigures).toHaveLength(1);expect(saved.metadata).toHaveLength(1);expect(saved.cases.at(-1).feedback.at(-1).verdict).toBe('accepted');expect(saved.strokes).toHaveLength(0);expect(errors).toEqual([]);
+ console.log('DECISION_BROWSER_LIVE',JSON.stringify({report,visiblePreviewMs:saved.cases.at(-1).clientPreviewMs}));
+});
+test('new ink invalidates an in-flight preview and discarding retains the original drawing',async({page})=>{
+ let release,requested;const gate=new Promise(r=>release=r);
+ await page.addInitScript(()=>window.addEventListener('draw3d-ready',e=>window.decisionTest=e.detail));
+ await page.route('https://fonts.googleapis.com/**',r=>r.abort());
+ await page.route('**/api/agent/sketch-decisions?*',async route=>{requested=route.request().postDataJSON();await gate;const {body,groups}=buildDecisionRequest(requested),response={answers:body.questions.map(q=>({type:'choice',name:q.name,choice:q.name==='drawing_representation'?'lines':q.name.endsWith('.intent')?'measured':q.name.endsWith('.alignment')?'drawn':q.name.endsWith('.primitive')?'polyline':q.name.endsWith('.closure')?'open':q.name.endsWith('.symmetry')?'none':q.name.endsWith('.role')?'geometry':'independent'}))};await route.fulfill({json:{...fitDecisionResponse(requested,groups,response),id:crypto.randomUUID(),cost:{usd:.0002,usageKnown:true},timings:{apiMs:50},input:{}}});});
+ await page.route('**/api/agent/decision-feedback?*',r=>r.fulfill({json:{saved:true}}));
+ await page.goto('http://127.0.0.1:5191/desktop.html?experiment=decision&refine=off&session='+crypto.randomUUID(),{waitUntil:'domcontentloaded'});await expect(page.locator('body')).toHaveAttribute('data-decision-ready','true',{timeout:30000});await page.locator('#decision-auto').uncheck();await page.locator('#decision-auto-accept').uncheck();
+ await page.evaluate(()=>{const {studio,store}=decisionTest;store.session.strokes.push({id:crypto.randomUUID(),points:[[0,1.15,-.6],[.1,1.15,-.6]],drawingPlane:structuredClone(studio.desktopPlane)});});
+ await page.locator('#decision-fit').click();await expect.poll(()=>!!requested).toBe(true);
+ await page.evaluate(()=>{const {store}=decisionTest;store.session.strokes[0].points.push([.1,1.2,-.6]);store.log('stroke.end',{id:store.session.strokes[0].id});});release();
+ await expect(page.locator('#decision-status')).toHaveText(/Drawing changed/);await expect(page.locator('#decision-accept')).toBeDisabled();
+ await page.locator('#decision-fit').click();await expect(page.locator('#decision-accept')).toBeEnabled();await page.locator('#decision-discard').click();
+ await expect(page.locator('#decision-status')).toHaveText(/discarded/);expect(await page.evaluate(()=>decisionTest.store.session.strokes.length)).toBe(1);expect(await page.evaluate(()=>decisionTest.studio.desktopDrawing.summary().length)).toBe(0);
+});

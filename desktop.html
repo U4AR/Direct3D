@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#111820">
+  <title>Draw3D · Desktop</title>
+  <style>
+    html { background: #111820 }
+    body[data-opening] > :not(#desktop-opening) { opacity: 0 !important; pointer-events: none !important }
+    #desktop-opening { position: fixed; inset: 0; display: grid; place-content: center; margin: 0; padding: 2rem; background: #111820; color: #e6e9ec; font: 15px system-ui,sans-serif }
+    body:not([data-opening]) > #desktop-opening { display: none }
+  </style>
+</head>
+<body class="desktop-studio" data-opening>
+  <p id="desktop-opening" role="status">Opening drawing…</p>
+  <div id="app" inert></div>
+  <script type="module" src="/src/desktop.js" onerror="document.getElementById('desktop-opening').textContent='Could not load the drawing workspace. Reload to retry.'"></script>
+</body>
+</html>

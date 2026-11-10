@@ -8,18 +8,42 @@
     "build": "node scripts/copy-vad.mjs && vite build",
     "predev": "node scripts/copy-vad.mjs",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --test tests/depth.test.mjs tests/bridge.test.mjs tests/input.test.mjs tests/speech.test.mjs",
+    "test": "node --test tests/depth.test.mjs tests/bridge.test.mjs tests/input.test.mjs tests/speech.test.mjs tests/sketch-reference.test.mjs tests/projection.test.mjs tests/plane-fitting.test.mjs tests/primitive-fitting.test.mjs tests/projection-mesh.test.mjs tests/sketch-analysis.test.mjs tests/path-mesh.test.mjs tests/math-expression.test.mjs tests/surface-math.test.mjs tests/model-pattern.test.mjs tests/stroke-variables.test.mjs tests/constrained-curve.test.mjs tests/model-spatial.test.mjs tests/object-grab.test.mjs tests/design-frame.test.mjs tests/pentagon.test.mjs tests/stroke-fitting.test.mjs tests/agent-provider.test.mjs tests/ai-studio-provider.test.mjs tests/vertex-express.test.mjs tests/rapid-construction.test.mjs tests/xr-calibration.test.mjs tests/desktop-topology.test.mjs tests/spatial-fitting.test.mjs tests/spatial-mask-fit.test.mjs tests/voice-ai-commands.test.mjs tests/stroke-archive.test.mjs && npm run test:workflow",
     "test:browser": "playwright test",
     "reconstruct": "node scripts/reconstruct.mjs",
-    "bridge": "node scripts/model-bridge.mjs"
+    "bridge": "node scripts/model-bridge.mjs",
+    "cad:setup": "powershell -NoProfile -File scripts/setup-full-cad.ps1",
+    "test:cad": "I:/Projects/Draw3d/.cache/native-build/cad-venv/Scripts/python.exe tests/test_cad.py",
+    "cad:bundle": "node scripts/bundle-cad.mjs",
+    "cad:setup-solids": "powershell -NoProfile -File scripts/setup-cad.ps1",
+    "mcp": "node scripts/draw3d-mcp.mjs",
+    "sculpt:bundle": "node scripts/bundle-sculpt.mjs",
+    "sculpt:setup": "powershell -NoProfile -File scripts/setup-sculpt.ps1",
+    "cad:build-agent": "node scripts/build-cad-agent.mjs",
+    "test:agent": "playwright test tests/agent.spec.js",
+    "test:agent-security": "node --test tests/agent-broker.test.mjs tests/agent-events.test.mjs tests/desktop-direct.test.mjs tests/desktop-context.test.mjs",
+    "test:ai": "node --test tests/model-agent.test.mjs tests/agent-broker.test.mjs tests/agent-events.test.mjs tests/desktop-direct.test.mjs tests/desktop-context.test.mjs tests/spatial-direct.test.mjs tests/direct-clarification.test.mjs tests/native-recovery.test.mjs tests/drawing-concurrency.test.mjs tests/request-recovery.test.mjs",
+    "test:modeling": "node --test tests/native-modeling.test.mjs tests/server-deployment.test.mjs",
+    "test:drawing": "node --test tests/drawing-recognition.test.mjs tests/spatial-fitting.test.mjs tests/stroke-fitting.test.mjs tests/live-shape-fitting.test.mjs tests/stroke-components.test.mjs",
+    "drawing:replay": "node scripts/replay-drawing-examples.mjs",
+    "test:harness": "node --test tests/harness-tools.test.mjs tests/native-action-harness.test.mjs tests/native-topology-view.test.mjs tests/native-smooth-tools.test.mjs tests/native-surface-sketch.test.mjs tests/desktop-context.test.mjs tests/feature-collaboration.test.mjs tests/continue-feature-work.test.mjs tests/native-region.test.mjs tests/native-view-cache.test.mjs tests/compact-response-schema.test.mjs tests/terra-specialist-reasoning.test.mjs tests/native-history-schema.test.mjs tests/schema-limit-recovery.test.mjs",
+    "test:collaboration": "node --test tests/feature-collaboration.test.mjs tests/continue-feature-work.test.mjs tests/native-region.test.mjs tests/body-selection.test.mjs tests/drawing-attention-focus.test.mjs",
+    "test:desktop-input": "node --test tests/desktop-view-reference.test.mjs tests/projection.test.mjs tests/desktop-direct.test.mjs tests/desktop-context.test.mjs",
+    "test:workflow": "node --test tests/sketch-workflow-contract.test.mjs tests/sketch-refinement.test.mjs tests/sketch-feature-plan.test.mjs tests/existing-sketch-edit.test.mjs tests/speech-stroke-context.test.mjs tests/desktop-sketch-fit.test.mjs tests/sketch-body-cut.test.mjs tests/wireframe-sketch.test.mjs",
+    "sketch:audit": "node scripts/sketch-audit.mjs",
+    "sketch:replay": "playwright test tests/recorded-cad-workflow.spec.js",
+    "test:workflow:browser": "playwright test tests/speech-sketch-edit.spec.js tests/sketch-refinement.spec.js tests/manual-part-workspace.spec.js --grep \"sketch first, build|recorded speech edits|typed correction edits|noise-only input|new drawing input cancels|two-stage preview waits|spoken correction after\"",
+    "test:workflow:native": "playwright test tests/recorded-cad-workflow.spec.js --grep \"native workflow commits\"",
+    "handoff": "node scripts/handoff.mjs"
   },
   "dependencies": {
     "@ricky0123/vad-web": "0.0.30",
     "fflate": "0.8.3",
+    "polygon-clipping": "0.15.7",
     "three": "0.180.0"
   },
   "devDependencies": {
-    "vite": "6.4.4",
-    "@playwright/test": "1.56.1"
+    "@playwright/test": "1.56.1",
+    "vite": "6.4.4"
   }
 }

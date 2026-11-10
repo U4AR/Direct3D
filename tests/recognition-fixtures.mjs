@@ -1,0 +1,5 @@
+import {ring,lerp} from './spatial-fixtures.mjs';
+const line=(a,b,n=35)=>Array.from({length:n},(_,i)=>lerp(a,b,i/(n-1))),poly=v=>v.slice(1).flatMap((b,i)=>line(v[i],b)),noise=(p,s=.001)=>p.map((v,i)=>v.map((x,j)=>x+s*Math.sin(i*1.73+j*2.1)));
+export const triangleExtrusion=()=>{const a=[[-.15,0,-.6],[.15,0,-.6],[0,.2,-.6],[-.15,0,-.6]];return [{id:'profile-a',points:noise(poly(a))},{id:'profile-b',points:noise(poly(a.map(p=>[p[0],p[1],p[2]-.25])))},{id:'generator',points:line(a[0],[a[0][0],a[0][1],a[0][2]-.25])}];};
+export const turnedPart=()=>[[-.2,.08],[-.1,.12],[0,.06],[.1,.1],[.2,.08]].map(([y,r],i)=>ring('section-'+i,t=>[r*Math.cos(t),1+y,-.6+r*Math.sin(t)]));
+export const filletExample=()=>({strokes:[{id:'arc',points:Array.from({length:60},(_,i)=>{const t=Math.PI+i/59*Math.PI/2;return [.05+.05*Math.cos(t),.05+.05*Math.sin(t),0];})}],context:{faces:[{modelId:'angle',modelVersion:3,index:1,center:[0,.1,0],normal:[1,0,0],edgeIndices:[7],bounds:{min:[0,0,-.2],max:[.2,.2,.2]}},{modelId:'angle',modelVersion:3,index:2,center:[.1,0,0],normal:[0,1,0],edgeIndices:[7],bounds:{min:[0,0,-.2],max:[.2,.2,.2]}}]}});

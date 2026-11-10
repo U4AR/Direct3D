@@ -1,0 +1,5 @@
+FROM draw3d-app:workspace-modes
+USER root
+COPY src /app/src
+COPY scripts /app/scripts
+USER 10001:10001

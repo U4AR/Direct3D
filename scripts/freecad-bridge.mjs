@@ -1,0 +1,10 @@
+import {proxyNativeModel,nativeRemoteHealth,nativeRemoteRun} from './native-model-proxy.mjs';
+import path from 'node:path';import {fileURLToPath} from 'node:url';
+import {createNativeModelEngine} from './native-model-engine.mjs';import {FREECAD_OPERATIONS} from '../src/blender-contract.js';
+const bin=()=>path.resolve('vendor/freecad-1.1.4/FreeCAD_1.1.4-Windows-x86_64-py311/bin');
+const engine=createNativeModelEngine({key:'freecad',name:'FreeCAD',executable:()=>process.env.FREECAD_PYTHON||(process.platform==='win32'?path.join(bin(),'python.exe'):'/opt/freecad/usr/bin/python'),guiExecutable:()=>process.env.FREECAD_PATH||path.join(bin(),'FreeCAD.exe'),argumentsForWorker:worker=>[worker],worker:fileURLToPath(new URL('./freecad-worker.py',import.meta.url)),operations:FREECAD_OPERATIONS,nativeFormat:'fcstd',formats:{fcstd:'model.FCStd',step:'model.step',stl:'model.stl'}});
+const remote=()=>process.env.FREECAD_SERVICE_URL;
+export const freecadHealth=()=>remote()?nativeRemoteHealth(remote(),'freecad'):engine.health();
+export const closeFreeCAD=engine.close,validateFreeCADDocument=engine.validateDocument;
+export const runFreeCADDocument=document=>remote()?nativeRemoteRun(remote(),'freecad',document):engine.run(document);
+export const handleFreeCAD=(req,res)=>remote()?proxyNativeModel(req,res,remote(),'freecad'):engine.handle(req,res);

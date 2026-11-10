@@ -1,0 +1,8 @@
+# Optional desktop model configuration; keys stay in the existing backend secret.
+# docker compose -f compose.yaml -f deploy/compose.terra.yaml -f deploy/compose.desktop-fast.yaml up -d --build
+services:
+  app:
+    environment:
+      OPENAI_AGENT_MODEL: gpt-6-luna
+      OPENAI_AGENT_REASONING: low
+      DRAW3D_CREATION_WORKFLOW: direct

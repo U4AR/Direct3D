@@ -1,0 +1,80 @@
+body.part-workspace{--panel:#161d24;--field:#202a33;--border:#36424d;--subtle:#9caab6;--focus:#b7dfd2;color:#e8edf0;font:14px/1.45 Inter,"Segoe UI",sans-serif;overflow:hidden}
+.part-workspace #app>header{height:54px;min-height:54px;box-sizing:border-box;padding:0 18px;display:flex;align-items:center;gap:16px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:nowrap;position:relative;z-index:100}
+.part-workspace header .brand{font-size:17px;letter-spacing:-.5px}.part-workspace header .brand-mark,.part-workspace header .brand em{color:var(--focus)}
+.part-workspace .header-actions{margin-left:auto;flex-wrap:nowrap;gap:12px}
+.part-workspace .project-name,.part-workspace #app>footer,.part-workspace .canvas-title,.part-workspace #empty-state,.part-workspace .viewport-top,.part-workspace .canvas-bottom,.part-workspace #ai-live-log,.part-workspace #desktop-edit-hint{display:none!important}
+.part-workspace #app>main,.part-workspace[data-creation-mode] #app>main{display:grid;height:calc(100dvh - 54px);min-height:0;grid-template-columns:0 minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+.part-workspace.part-browser-open #app>main{grid-template-columns:215px minmax(0,1fr)}
+.part-workspace .left-panel{display:none;padding:16px 14px;grid-area:1/1;border:0;border-right:1px solid var(--border);background:var(--panel);overflow:auto;max-height:none}
+.part-workspace.part-browser-open .left-panel{display:block}
+.part-workspace .workspace{grid-area:1/2;min-width:0;height:auto;min-height:0}
+.part-workspace .left-panel>:not(.part-library),.part-workspace #desktop-cad-toolbar>span{display:none!important}
+.part-workspace .part-library h2{font-size:14px;letter-spacing:.01em;margin:6px 0 12px}
+.part-workspace #part-list{display:grid;gap:4px;padding-bottom:18px;margin-bottom:6px;border-bottom:1px solid var(--border)}
+#part-list p{font-size:12px;color:var(--subtle);padding:0;margin:0}#part-list button{display:flex;align-items:center;gap:8px;text-align:left;overflow-wrap:anywhere}
+.part-workspace button,.part-workspace summary{font-family:inherit;font-size:13px}
+.part-workspace button:focus-visible,.part-workspace summary:focus-visible,.part-workspace textarea:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.part-workspace svg{flex:none}#part-browser-toggle svg,#part-list svg,#part-solidify svg,.part-icon svg,.part-mic svg{width:18px;height:18px}
+#part-browser-toggle{display:inline-flex;align-items:center;gap:6px;background:none;border:0;border-left:1px solid var(--border);border-radius:0;padding:0 0 0 15px;color:#ced7df}
+.part-workspace .part-menu{position:relative;color:#d1dbe3}
+.part-workspace .part-menu>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px;cursor:pointer;color:inherit;font-weight:500}
+.part-menu>summary::-webkit-details-marker{display:none}
+.part-menu>summary::after{content:'';display:inline-block;width:5px;height:5px;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:translateY(-1px) rotate(45deg)}
+.part-menu[open]>summary::after{transform:translateY(2px) rotate(225deg)}
+.part-workspace .part-menu summary:hover,.part-workspace #part-list button:hover{background:var(--field);border-radius:5px}
+.part-workspace .part-menu-content{display:grid;gap:8px;min-width:0}
+.part-workspace .part-menu-content :is(label,summary,button,select,input){max-width:100%;box-sizing:border-box}
+.part-workspace .part-menu-content p,.part-workspace .part-menu-content label{font-size:12px}
+.part-workspace .part-library>.part-menu{border-bottom:1px solid #29343d}
+.part-workspace :is(#part-tools,#part-settings,#part-files)>.part-menu-content{position:absolute;z-index:110;top:calc(100% + 8px);right:0;width:min(280px,80vw);max-height:65dvh;overflow:auto;padding:12px;border:1px solid var(--border);border-radius:9px;background:var(--panel);box-shadow:0 12px 36px #0006;color:#d1dbe3;text-align:left}
+.part-workspace #part-files>.part-menu-content{width:180px}
+.part-workspace .part-menu-content select,.part-workspace .part-menu-content input:not([type=checkbox]){width:100%}
+.part-workspace #desktop-cad-toolbar{position:absolute;top:14px;left:50%;right:auto;transform:translateX(-50%);width:max-content;max-width:calc(100% - 16px);display:flex;flex-flow:row nowrap;align-items:center;gap:4px;padding:5px;border:1px solid var(--border);border-radius:9px;background:#1b242cf7;box-shadow:0 4px 14px #0003;z-index:76}
+.part-workspace #desktop-cad-toolbar .part-icon,.part-workspace #desktop-history-buttons button{width:34px;height:34px;min-width:32px;min-height:32px;padding:6px;display:grid;place-items:center;border:0;border-radius:5px;background:transparent;color:#d0dbe2}
+.part-workspace #desktop-cad-toolbar .part-icon.selected{background:#364e4f;color:#c9f0df}
+.part-workspace #desktop-cad-toolbar .part-icon:disabled{opacity:.32}
+.part-workspace #desktop-history-buttons{display:flex;gap:1px;margin-left:3px;padding:0 2px 0 4px;border-right:0;border-left:1px solid var(--border)}
+.part-workspace #desktop-cad-toolbar .part-menu-content :is(#cad-plane-picker,#desktop-selection-tools){position:static;inset:auto;width:auto;display:block;border:0;background:none;transform:none;box-shadow:none;padding:0}
+.part-workspace #part-tools button{margin:2px;min-height:30px}
+.part-workspace .part-menu-content #desktop-edit-layer{display:flex}
+.part-workspace #part-composer{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:72;width:min(480px,calc(100% - 24px));box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:7px;border:1px solid #47545d;border-radius:10px;background:#1b242cf7;box-shadow:0 6px 22px #0004}
+.part-workspace #decision-instruction{flex:1;min-width:0;height:34px;min-height:34px;max-height:70px;resize:none;border:0;background:transparent;padding:6px 2px;font:14px/22px Inter,"Segoe UI",sans-serif;color:#edf3f3}
+.part-workspace #part-solidify{display:inline-flex;gap:6px;align-items:center;padding:6px 12px;background:var(--focus);border:1px solid transparent;color:#142925;font-weight:650;min-height:34px;border-radius:6px}
+.part-workspace #part-solidify:disabled{background:#2b363c;color:#99a8ad}
+.part-mic{position:relative;width:34px;height:34px;flex:none}
+.part-workspace #mic{width:34px;height:34px;min-height:34px;margin:0;padding:0;border:0;background:#2b363e;border-radius:5px;font-size:0}
+.part-mic svg{pointer-events:none;position:absolute;inset:8px;color:#c4d0d6}
+.part-mic:has([aria-pressed=true]) svg,.part-mic:has(.active) svg{color:#99f1cb}
+.part-workspace #decision-preview-controls,.part-workspace #decision-plane-choice{bottom:84px;border:1px solid #415953;background:#1a2829;border-radius:7px;box-shadow:0 4px 16px #0003}
+.part-workspace #decision-construction{bottom:150px}
+.part-workspace #decision-live-speech{position:absolute;bottom:3px;left:12px;right:12px;text-align:center;pointer-events:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#a5b4bf}
+.part-workspace #decision-details,.part-workspace #decision-wire{font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:240px;overflow:auto}
+.part-workspace #decision-input-images img{max-width:100%}
+.part-workspace .part-library :is(#cad-sketch-library,#cad-plane-editor,#cad-model-history,#cad-properties,#cad-sketch-constraints){padding:6px 2px;border:0;background:none;margin:0;box-shadow:none}
+.part-workspace .part-library :is(#cad-sketch-library,#cad-sketch-constraints,#cad-properties)>h2,.part-workspace #desktop-audio-hint{display:none}
+@media(max-width:800px){.part-workspace #app>header{height:50px;padding:0 8px;gap:6px}.part-workspace .header-actions{gap:2px}.part-workspace #app>main,.part-workspace.part-browser-open #app>main{height:calc(100dvh - 50px);grid-template-columns:0 minmax(0,1fr)}.part-workspace.part-browser-open .left-panel{position:absolute;z-index:82;top:50px;bottom:0;left:0;width:min(250px,70vw);box-shadow:4px 0 24px #0005}.part-workspace #part-tools>.part-menu-content{right:-12px}.part-workspace #part-composer{bottom:16px}}
+
+.part-workspace #desktop-cad-toolbar #cad-pen:not(.selected){border:0;background:none;color:#d0dbe2;box-shadow:none}
+.part-workspace #part-toast{position:absolute;bottom:82px;left:50%;transform:translateX(-50%);z-index:74;padding:6px 12px;color:#d1eadf;background:#1c2b29;border:1px solid #40554f;border-radius:6px;font-size:12px;pointer-events:none}
+.part-workspace #part-files #save-status{font-size:12px;color:var(--subtle)}
+
+.part-workspace header .brand>span:last-child{color:var(--focus)}
+@media(max-width:620px){.part-workspace #app>header{gap:6px;height:50px}.part-workspace .header-actions{gap:0}.part-workspace #part-browser-toggle{padding-left:8px}.part-workspace .header-actions summary{padding-inline:7px}.part-workspace #part-files #workspace-modes{justify-self:start}}
+.part-workspace.part-chat-open #app>main{grid-template-columns:0 minmax(0,1fr) clamp(230px,23vw,345px)}
+.part-workspace.part-chat-open.part-browser-open #app>main{grid-template-columns:215px minmax(0,1fr) clamp(230px,23vw,345px)}
+#part-chat{grid-area:1/3;background:var(--panel);border-left:1px solid var(--border);min-height:0;display:flex;flex-direction:column;z-index:78}
+#part-chat[hidden],#part-solidify[hidden]{display:none!important}
+#part-chat h2{font-size:15px;margin:16px}
+.part-chat-feed{overflow:auto;min-height:0;padding:0 14px 16px}
+.part-message{margin:9px 0 15px;max-width:95%;overflow-wrap:anywhere}
+.part-message.user{margin-left:8%;padding:9px 12px;border-radius:9px;background:#263438}
+.part-message small{color:var(--subtle);font-size:11px}.part-message p{white-space:pre-line;margin:4px 0}
+.part-message svg,.part-message img{display:block;width:100%;max-height:96px;color:var(--focus)}.part-message audio{width:100%;height:32px}
+#part-create{white-space:nowrap;background:var(--focus);color:#132521;border-radius:6px;padding:6px 12px;font-weight:650}
+#part-create:disabled{opacity:.5}
+@media(max-width:999px){.part-workspace.part-chat-open #app>main,.part-workspace.part-chat-open.part-browser-open #app>main{grid-template-columns:0 minmax(0,1fr)}#part-chat{position:absolute;right:0;top:54px;bottom:0;width:min(320px,80vw)}}
+#part-pose{margin:8px 0;padding:10px;border:1px solid var(--border);border-radius:6px}
+#part-pose h3{font-size:13px;margin:0 0 6px}#part-pose fieldset{border:0;margin:5px 0;padding:0;display:flex;gap:5px}
+#part-pose label{min-width:0;display:grid;font-size:11px;color:var(--subtle)}#part-pose input{width:100%;box-sizing:border-box}#part-pose button{margin:2px}
+
+#part-state{position:absolute;bottom:82px;left:14px;z-index:60;pointer-events:none;font-size:12px;color:var(--subtle);background:var(--panel);padding:4px 8px;border-radius:4px}

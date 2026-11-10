@@ -1,0 +1,12 @@
+import {bounds,thinSmooth,resample,simplify,designAngle,rotate,sub,lineFit,circleFit,ellipseFit,distance,norm,dot,symmetryScore} from './math.js';
+export const FEATURE_NAMES=['gap','lineError','circleError','ellipseError','rectangleError','aspect','corners','straightFraction','totalTurn','turnConsistency','directionChanges','symmetryX','symmetryY'];
+export function strokeFeatures(raw){
+ if(!Array.isArray(raw)||raw.length<2||raw.some(p=>!Array.isArray(p)||p.length!==2||!p.every(Number.isFinite)))throw Error('Use finite planar stroke points');
+ const box=bounds(raw);if(box.span<1e-9)throw Error('Stroke is too small');
+ const normalized=raw.map(p=>sub(p,box.center).map(v=>v/box.span)),smoothed=thinSmooth(normalized),p=resample(smoothed,64),gap=distance(p[0],p.at(-1)),angle=designAngle(p),q=p.map(p=>rotate(p,-angle)),b=bounds(q),line=lineFit(p),circle=circleFit(p),ellipse=gap<.3?ellipseFit(p):null;
+ const w=b.max[0]-b.min[0],h=b.max[1]-b.min[1],rect=[[b.min[0],b.min[1]],[b.max[0],b.min[1]],[b.max[0],b.max[1]],[b.min[0],b.max[1]]],errorRect=Math.sqrt(q.reduce((n,[x,y])=>n+Math.min((x-b.min[0])**2,(x-b.max[0])**2,(y-b.min[1])**2,(y-b.max[1])**2),0)/q.length);
+ const knots=simplify(p,.018),vectors=knots.slice(1).map((p,i)=>sub(p,knots[i]));let corners=0,straight=0,totalTurn=0,signedTurn=0,sequence=[];
+ for(let i=0;i<vectors.length;i++){const d=rotate(vectors[i],-angle),direction=Math.abs(d[0])>=Math.abs(d[1])?(d[0]>=0?'R':'L'):(d[1]>=0?'U':'D');if(sequence.at(-1)!==direction)sequence.push(direction);if(i){const a=vectors[i-1],turn=Math.atan2(a[0]*vectors[i][1]-a[1]*vectors[i][0],dot(a,vectors[i]));totalTurn+=Math.abs(turn);signedTurn+=turn;if(Math.abs(turn)>.7)corners++;}const a=knots[i],end=knots[i+1],local=p.filter(v=>dot(sub(v,a),vectors[i])>=0&&dot(sub(v,end),vectors[i])<=0);if(local.length<3||lineFit(local).rms<.006)straight+=norm(vectors[i]);}
+ const length=vectors.reduce((n,d)=>n+norm(d),0),sx=symmetryScore([...q,q[0]],Math.PI/2),sy=symmetryScore([...q,q[0]],0),values=[gap,line.rms,circle?.rms??1,ellipse?.rms??1,errorRect,Math.min(w,h)/(Math.max(w,h)||1),Math.min(corners,12)/12,Math.min(1,straight/(length||1)),totalTurn/(2*Math.PI),Math.abs(signedTurn)/(totalTurn||1),Math.min(sequence.length,24)/24,sx,sy];
+ return {values:Object.fromEntries(FEATURE_NAMES.map((k,i)=>[k,values[i]])),sequence,corners,normalized:p,angle,scale:box.span,origin:box.center,fastStraight:line.max<.008&&gap>.2,diagnostics:{smoothedPointCount:smoothed.length,rawPointCount:raw.length}};
+}

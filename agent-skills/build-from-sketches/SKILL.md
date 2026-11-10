@@ -1,0 +1,14 @@
+---
+name: build-from-sketches
+description: Build a requested Draw3D solid from computed profiles using native sketch references and a compact construction plan.
+---
+
+Aim for a verified visible body within ten seconds for a routine part. Choose the shortest construction that represents the requested geometry. The application measures completion when the native engine publishes the body.
+
+* For an accepted profile of constant thickness, emit one extrude in `solidEdits` with its supplied figure ID, version and depth in metres. For a rough section with intended mirror symmetry, lock the editable outline to the design axis before the feature in the same plan. Keep intentional asymmetric details and openings. Already symmetric sections can be used directly. For fresh ink with a suitable fitted closed outline, set its extrusion depth with an adjust operation.
+* Use a revolve for a radial section, a loft for successive sections at different depths, or an intersection for perpendicular silhouette views. Use the supplied planes, axis and section order. Check closure, except for an open section supported by the endpoint revolution axis or by a hollow-wall revolve. For a hollow cap, select ONE outer meridian, set revolution.wallThicknessMetres and a horizontal/vertical axis with axisOriginUV through the crown. Preserve the open rim and requested cavity. Never replace a hollow request with a solid cap. Infer ordinary defaults and report them briefly; ask only for essential ambiguity that cannot reasonably be inferred.
+* When asked to design a new symmetric body inspired by the fit, use `bodyDesign` landmarks for the defining silhouette. Choose form=revolve and null thickness for a rotational body, or form=extrude and positive thickness for a plate. When the request is a sketch edit, keep it two-dimensional.
+* Submit the complete construction in the first response when the supplied geometry resolves the request. Carry dimensions and existing profile IDs directly. Request an inspection only for a missing geometric fact that changes the construction. On failure, use the reported operation and current document revision to revise that step before retrying.
+
+* Read requestedDeliverable before planning. For new_body, return a CAD body in this preview. The fitted strokes are guides. For localized details on a rotational part, revolve the main meridian and use featurePlan cuts or joins against that result. Limit each guide to the feature it describes. Features that repeat around the entire axis belong in the meridian.
+* For a short continuation such as “go ahead” or “do something,” consult previousWorkOnTargets. Resume the latest applicable instruction that still lacks its requested result. A later explicit instruction controls the current operation. Keep unrelated targets independent.
