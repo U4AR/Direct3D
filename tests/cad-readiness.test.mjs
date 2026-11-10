@@ -1,4 +1,5 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {isCadDocument,waitForCadEditor} from '../src/cad-readiness.js';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {isCadDocument,waitForCadEditor,ensureCadEditing} from '../src/cad-readiness.js';
+test('authorized CAD edits leave View mode while genuine access restrictions are preserved',async()=>{let mode='view';await ensureCadEditing({editingStatus:()=>({mode}),enableEditing:()=>{mode='build';}});assert.equal(mode,'build');await assert.rejects(ensureCadEditing({editingStatus:()=>({mode:'view'}),enableEditing:()=>{throw Error('This shared project is read-only');}}),/read-only/);});
 test('the initial about:blank iframe is not an editor initialization',()=>{assert.equal(isCadDocument({getAttribute:()=>null,contentWindow:{location:{pathname:'blank'}}}),false);assert.equal(isCadDocument({getAttribute:()=>'/cad/index.html',contentWindow:{location:{pathname:'blank'}}}),false);});
 test('CAD readiness waits for the real document and restoration, preserving the editor instance',async()=>{
  const api={document:()=>({projectId:'saved'})},frame={getAttribute:()=>'/cad/index.html',contentWindow:{location:{pathname:'blank'}},contentDocument:{querySelector:()=>false}};let tick=0;const progress=[];

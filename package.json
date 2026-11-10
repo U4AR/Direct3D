@@ -35,7 +35,8 @@
     "sketch:replay": "playwright test tests/recorded-cad-workflow.spec.js",
     "test:workflow:browser": "playwright test tests/speech-sketch-edit.spec.js tests/sketch-refinement.spec.js tests/manual-part-workspace.spec.js --grep \"sketch first, build|recorded speech edits|typed correction edits|noise-only input|new drawing input cancels|two-stage preview waits|spoken correction after\"",
     "test:workflow:native": "playwright test tests/recorded-cad-workflow.spec.js --grep \"native workflow commits\"",
-    "handoff": "node scripts/handoff.mjs"
+    "handoff": "node scripts/handoff.mjs",
+    "test:cad-runtime": "node --test tests/cad-readiness.test.mjs tests/voice-detector.test.mjs tests/collaborative-cad.test.mjs tests/native-startup.test.mjs"
   },
   "dependencies": {
     "@ricky0123/vad-web": "0.0.30",

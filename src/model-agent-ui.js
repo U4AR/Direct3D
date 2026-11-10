@@ -13,7 +13,7 @@ import {initAIActivity} from './ai-activity.js';
 import { sketchReference } from "./sketch-reference.js";
 import { blobToBase64 } from "./audio.js";
 export function initModelAgentUI({ panel, store, studio, input, addTranscript, request, dispatch, desktop }) {
-  const decisionLab=new URL(location.href).searchParams.get('experiment')==='decision',remoteRequest=request;request=(method,...args)=>{if(decisionLab&&!['poll','ai-status','recording-status','speech-decision','sketch-decisions','sketch-refine','sketch-command','refinement-inspect','image-surface','decision-inspect','decision-preview','decision-feedback','audio-log','concept-transcribe'].includes(method))return Promise.reject(Error('This experiment uses the Decisions API; open the main workspace for CAD-agent edits.'));return remoteRequest(method,...args);};
+  const decisionLab=new URL(location.href).searchParams.get('experiment')==='decision';
   if(decisionLab)studio.decisionRequest=request;
   const activityLog=initAIActivity(studio,store);
   if(document.body.classList.contains('desktop-studio'))initDesktopDraftReview({studio,store,request,record:(...args)=>activityLog.record(...args)});
@@ -569,10 +569,10 @@ export function initModelAgentUI({ panel, store, studio, input, addTranscript, r
   window.addEventListener('draw3d-ready',()=>{migrating=true;queueMicrotask(async()=>{try{await studio.desktopHistory?.ready;await archivePreviousDrawing();if(store.session.pendingConceptReview)await concepts.restorePending?.();}catch(e){error='Could not archive previous drawing: '+e.message;}finally{migrating=false;feedback();}});},{once:true});
   async function resumePending(){if(submitting||migrating||resuming)return;resuming=true;try{const checkpoint=store.session.aiDirectCheckpoint;if(checkpoint){const saved=await store.get('assets',[store.session.id,checkpoint.asset]);if(saved)return await submit(checkpoint.prompts,JSON.parse(await saved.blob.text()));}const prior=[...store.session.transcripts].reverse().find(p=>p.text&&!p.voiceControl&&!voiceAICommand(p.text));if(!prior)return;update(await request('ai-stop',{}),true);return await submit([prior]);}finally{resuming=false;}}
   studio.strokeArchive={archive:async()=>{const evidence=await desktop.prepare();return archiveAppliedStrokes({store,studio,evidence,summary:'Previous source drawing'});},recall:async ids=>attachStrokeArchives(store,await desktop.prepare(),ids)};
-  return { update,resumePending,get recoveryState(){return {submitting,migrating,answering,directStopped,ready,speaking,transcribing,pending:pending.length,resuming,resumeAt};},get stopped(){return directStopped;}, get ready(){return ready;}, get busy(){return busy();},get conceptEdition(){return concepts.enabled;}, get awaitingInput(){return !!(pending.length||speaking||transcribing);}, async submitInstruction(text, source="desktop-sketch") {
+  return { update,resumePending,get waitingForAnswer(){return waitingForAnswer();},answerInstruction:(text,source="typed")=>answerQuestion(text,source),get recoveryState(){return {submitting,migrating,answering,directStopped,ready,speaking,transcribing,pending:pending.length,resuming,resumeAt};},get stopped(){return directStopped;}, get ready(){return ready;}, get busy(){return busy();},get conceptEdition(){return concepts.enabled;}, get awaitingInput(){return !!(pending.length||speaking||transcribing);}, async submitInstruction(text, source="desktop-sketch") {
     if(!ready)throw Error("AI backend is unavailable. Start npm run bridge and configure the provider.");
     if(busy())throw Error("AI is already working; drawing changes remain queued.");
     const p={id:crypto.randomUUID(),text,start:store.elapsed(),end:store.elapsed(),source};
-    seen.add(p.id);addTranscript(p);return submit([p]);
+    seen.add(p.id);addTranscript(p);await submit([p]);if(error)throw Error(error);return lastRun;
   } };
 }

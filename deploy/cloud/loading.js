@@ -8,6 +8,7 @@
   stage('runtime','Waking up your private workspace. This can take a minute after a break…');
   for(let attempt=0;attempt<120;attempt++){
    const r=await fetch('/auth/prepare',{signal:AbortSignal.timeout(190000)});if(r.status===401){location.replace('/login');return;}const data=await r.json();
+   if(r.status===429&&data.code==='WORKSPACE_FULL'){status.textContent='Both design spaces are currently in use. Up to 2 users can work at once. Waiting for a space to become available…';await new Promise(resolve=>setTimeout(resolve,20000));continue;}
    if(r.ok&&data.ready){stage('tools','Workspace ready. Loading your drawing and CAD tools…');location.replace(next);return;}
    if(!r.ok&&r.status!==503)throw Error(data.error||'Workspace could not start.');
    status.textContent=data.stage==='provisioning'?'Creating your private workspace for the first time. Your account and files stay separate.':'Your workspace is still waking up. Keeping your sign-in while we retry…';

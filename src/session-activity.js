@@ -41,6 +41,10 @@ export function recordSessionActivity(store,send){
  };
  document.addEventListener('click',click,true);
  document.addEventListener('change',click,true);
+ const recentErrors=new Map();
+ const runtimeError=(type,error,extra={})=>{const message=String(error?.message||error||'Unknown browser error').replace(/sk-[\w-]{20,}|Bearer\s+\S+/g,'[redacted]').slice(0,1200),now=Date.now();if(now-(recentErrors.get(message)||0)<30000)return;recentErrors.set(message,now);if(recentErrors.size>40)recentErrors.delete(recentErrors.keys().next().value);store.log(type,{message,...extra});};
+ window.addEventListener('error',event=>runtimeError('runtime.error',event.error||event.message,{source:event.filename?.split('?')[0],line:event.lineno,column:event.colno}));
+ window.addEventListener('unhandledrejection',event=>runtimeError('runtime.promise.error',event.reason));
  const leave=()=>{stopped=true;clearTimeout(timer);};
  window.addEventListener('pagehide',leave);
  window.addEventListener('pageshow',()=>{if(stopped){stopped=false;timer=setTimeout(sync,0);}});

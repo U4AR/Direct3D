@@ -191,6 +191,8 @@ export function initFullCAD(studio, store, notice, addTranscript) {
       try { await projectReady(); } catch { return; }
       ready = true;
       status.hidden = true;
+    } else if(type==='command-error'){
+      store.log('cad.command.error',data);
     } else if (type === "project") {
       if (!initialized || frame.contentWindow.__draw3dCAD?.document()?.projectId !== data.projectId) return;
       const sequence = ++saveSequence;

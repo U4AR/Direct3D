@@ -1,4 +1,5 @@
 import {recordSessionActivity} from './session-activity.js';
+import {ensureCadEditing} from './cad-readiness.js';
 import {coordinateChildPlacements} from './body-selection.js';
 import {initBodyColors} from './body-colors.js';
 import {syncAttachedStrokes} from './design-frame.js';
@@ -898,6 +899,7 @@ export function initAgentWorkspaces(studio, store, cad, notice, addTranscript) {
       }
       case "cad_execute": {
         const api = await ensure("cad");
+        await ensureCadEditing(api);
         const payload = completeLineProfile(a.operation, a.payload, api.document());
         const result = api.execute(a.operation, payload, a.expectedVersion);
         const d = await settled(api);

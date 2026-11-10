@@ -50,6 +50,7 @@ export class SpeechCapture {
   }
   async start({audioContext} = {}) {
     if (this.active || this.starting) return;
+    this.paused=false;
     if (!navigator.mediaDevices?.getUserMedia)
       throw new Error("Microphone needs HTTPS or localhost.");
     this.starting=true;
@@ -238,12 +239,16 @@ export class SpeechCapture {
     this.stopping = this.stopCapture({preserveStream}).finally(() => { this.stopping = null; });
     return this.stopping;
   }
+  async pause(){this.paused=true;await this.stop();this.onStatus('Audio paused · resume when ready');this.onDiagnostics({phase:'paused',status:'Audio paused · resume when ready',level:0,speaking:false});this.store.log('microphone.paused');}
+  async resume(){if(!this.paused)return;await this.start();this.store.log('microphone.resumed');}
   async stopCapture({preserveStream=false} = {}) {
     this.active = false;
     const stream = this.stream||this.retainedStream;
     this.stream = null;
     this.retainedStream=preserveStream&&stream?.getAudioTracks().some(t=>t.readyState==="live")?stream:null;
     stream?.getTracks().forEach(track => { track.onended = track.onmute = track.onunmute = null; });
+    // Release device access immediately; detector/recorder cleanup may be async.
+    if(!this.retainedStream)stream?.getTracks().forEach(track=>track.stop());
     clearInterval(this.audioWatchdog);
     this.native?.stop();
     this.native = null;
@@ -260,7 +265,6 @@ export class SpeechCapture {
         this.recorder.onstop = resolve;
         this.recorder.stop();
       });
-    if(!this.retainedStream)stream?.getTracks().forEach((track) => track.stop());
     if(this.audioContext && this.audioContext.state!=="closed") await this.audioContext.close();
     this.audioContext=null;
     await Promise.allSettled(this.assetWrites);

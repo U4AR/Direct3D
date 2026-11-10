@@ -21,10 +21,20 @@ export async function versionCadWorker(root){
  await writeFile(path.join(assets,'draw3d-exact-cut.js'),await readFile(new URL('../src/cad-exact-cut.js',import.meta.url)));
  for(const name of imports.keys()){
   let source=(await readFile(path.join(assets,name),'utf8')).replace(/\?draw3dKernel=[a-f0-9]{12}/g,'');
-  if(name===entry&&!source.includes('__draw3dCAD={geometryStatus:')){
-   const marker='__draw3dCAD={document:';
+  if(name===entry&&!source.includes('editingStatus:')){
+   const marker='__draw3dCAD={';if(source.split(marker).length!==2)throw Error('Review CAD editing mode bridge');
+   source=source.replace(marker,marker+'editingStatus:()=>({mode:Qs.current,reason:Cu.current||null}),enableEditing:()=>{if(Xl||_u)throw Error(Xl||_u);om(`build`);},');
+  }
+  if(name===entry&&!source.includes('draw3dCadCommandError')){
+   const caught='catch(e){return V($(e,`Command failed.`)),!1}',rejected='if(!Np(r))throw Error(`CAD rejected the command; inspect document diagnostics`);';
+   if(source.split(caught).length!==2||source.split(rejected).length!==2)throw Error('Review CAD command diagnostics bridge');
+   source=source.replace(caught,'catch(e){window.draw3dCadCommandError=e?.message||String(e);return V($(e,`Command failed.`)),!1}').replace('let r=N[e](...Array.isArray(t)?t:[t]);','window.draw3dCadCommandError=null;let r=N[e](...Array.isArray(t)?t:[t]);');
+   source=source.replace(rejected,'if(!Np(r)){const message=window.draw3dCadCommandError||Cu.current||`CAD rejected the command`;window.parent.postMessage({channel:"draw3d.cad",type:"command-error",data:{operation:e,version:n,error:message}},location.origin);const failure=Error(message);failure.cadCommandError=true;throw failure;}');
+  }
+  if(name===entry&&!source.includes('geometryStatus:()=>')){
+   const marker='__draw3dCAD={';
    if(!source.includes(marker)||!source.includes('Y.state.phase'))throw Error('Review native CAD geometry status bridge');
-   source=source.replace(marker,'__draw3dCAD={geometryStatus:()=>({phase:Y.state.phase,error:Y.state.error}),document:');
+   source=source.replace(marker,marker+'geometryStatus:()=>({phase:Y.state.phase,error:Y.state.error}),');
   }
   if(name===entry&&!source.includes('draw3dMemoryRetry')){
    // The pinned editor restarts crashed workers, but a WASM allocation error

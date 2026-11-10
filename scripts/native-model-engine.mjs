@@ -11,7 +11,8 @@ async function start(){
  if(readyPromise)return readyPromise;
  readyPromise=new Promise((resolve,reject)=>{
   let settled=false;const proc=child=spawn(executable(),argumentsForWorker(worker),{windowsHide:true,env:{...process.env,...environment(),PYTHONIOENCODING:'utf-8'}});
-  const timer=setTimeout(()=>{proc.kill();reject(Error('Native engine startup timed out'));readyPromise=undefined;},20000);
+  const startupMs=Math.max(1000,Math.min(180000,Number(process.env.DRAW3D_NATIVE_STARTUP_MS)||90000));
+  const timer=setTimeout(()=>{proc.kill();reject(Error('Native engine startup timed out; please retry after the cold start'));readyPromise=undefined;},startupMs);
   proc.stderr.on('data',b=>stderr=(stderr+b).slice(-4000));
   createInterface({input:proc.stdout}).on('line',line=>{
    if(line.startsWith('DRAW3D_READY ')){clearTimeout(timer);version=JSON.parse(line.slice(13)).version;settled=true;resolve({ready:true,version,operations,engine:key,exports:Object.keys(formats),guiAvailable:process.env.ALLOW_NATIVE_GUI==='1'||process.platform==='win32'&&process.env.ALLOW_NATIVE_GUI!=='0'});}

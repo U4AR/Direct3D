@@ -1,4 +1,5 @@
 import {alignInitialDrawing} from './part-placement.js';
+import {collaborationStepPrompt,isSpokenDesignTranscript} from './cad-collaboration.js';
 import {figureWorkCaseIds,isSketchContinuation,previousSketchWork,summarizeSketchWork} from './sketch-work-history.js';
 import {initPartWorkspace} from './part-workspace.js';
 import {speechStrokeContext,speechFigureIds} from './speech-stroke-context.js';
@@ -267,6 +268,7 @@ export async function initDecisionSketchLab({studio,store}){
      return;
     }
     emptySpeechCount=0;
+    if(studio.modelAgent.waitingForAnswer){await collaborativeStep(words);return;}
     if(!activeTurn&&!pending&&!busy&&!applying)status.textContent='Heard “'+words+'” · checking instruction…';
     const decision=speechDecisions.get(id)||await studio.decisionRequest('speech-decision',{
      text:words,currentInstruction:activeTurn?.words||text(),question:pending?.refinement?.question,
@@ -354,13 +356,14 @@ export async function initDecisionSketchLab({studio,store}){
   if(partUI){
    const building=busy&&buildingPart?.token===generation;
    const requested=building&&finishWhenReady===buildingPart;
-   const hasBody=(store.session.desktopSolids||[]).length>0;
+   const hasBody=(store.session.desktopSolids||[]).length>0||studio.surfaceModels?.().some(m=>!m.hidden);
    partUI.state.textContent=problem?'Could not finish · see Chat':placementRequest?'Choose a sketch plane':applying?'Applying geometry':busy?(building||buildPressed||runningInstruction?.startsWith('Create or modify the editable')?'Building 3D':'Preparing sketch'):speechPending?'Listening to instruction':bodyReady?'3D preview':pending?'Reviewing sketch':hasBody?'Editing part':studio.desktopDrawing.summary().length?'Sketch ready · request 3D or press Create 3D':'Sketch mode';
    partUI.state.title=status.textContent;
-   partUI.create.disabled=busy||applying||speechPending||!!placementRequest||!(pending||studio.desktopDrawing.summary().some(f=>!f.hidden)||store.session.strokes.some(s=>!s.hidden));
-   partUI.solidify.disabled=!!placementRequest||applying||speechPending||requested||!(building||!busy&&(bodyReady||recoveredPart()||savedPartReady()));
+   partUI.create.textContent=hasBody?'Apply next step':'Create 3D';
+   partUI.create.disabled=busy||applying||speechPending||!!placementRequest||!(pending||text()||hasBody||studio.desktopDrawing.summary().some(f=>!f.hidden)||store.session.strokes.some(s=>!s.hidden));
+   partUI.solidify.disabled=!!placementRequest||applying||speechPending||requested||!(building||!busy&&(bodyReady||recoveredPart()||savedPartReady()||studio.aiDraftReview.active&&studio.aiDraftReview.hasChanges&&!studio.aiDraftReview.busy));
    partUI.solidify.hidden=partUI.solidify.disabled;
-   partUI.solidify.lastChild.textContent=requested?'Finishing…':'Solidify';
+   partUI.solidify.lastChild.textContent=requested?'Saving…':'Keep step';
    partUI.renderParts();
   }
  }
@@ -378,6 +381,7 @@ export async function initDecisionSketchLab({studio,store}){
  }
  async function solidify(){
   if(partUI.solidify.disabled)return;
+  if(studio.aiDraftReview.active&&studio.aiDraftReview.hasChanges&&!studio.aiDraftReview.busy&&!nativeDraftOwned){await studio.aiDraftReview.accept();await studio.desktopHistory.capture('Keep collaborative design step');partUI.announce('Step kept · the model remains editable');sync();return;}
   if(busy&&buildingPart?.token===generation){finishWhenReady=buildingPart;sync();return;}
   if(recoveredPart()){
    applying=true;sync();
@@ -439,6 +443,30 @@ export async function initDecisionSketchLab({studio,store}){
    return result;
   }
  }
+ async function collaborativeStep(words){
+  const id=crypto.randomUUID(),field=$('#decision-instruction'),submitted=field.value,hadBody=studio.surfaceModels?.().some(m=>!m.hidden),question=pending?.refinement?.question?{question:pending.refinement.question,instruction:cases.find(c=>c.id===pending.id)?.work?.instruction||runningInstruction}:null;
+  if(studio.modelAgent.busy&&!studio.modelAgent.waitingForAnswer){queued=true;status.textContent='Your next step is queued while AI finishes the current move…';clearTimeout(timer);timer=setTimeout(()=>void fit(),750);return;}
+  busy=true;queued=false;stopAutoAccept();progress.begin('Working on your next CAD step');status.textContent='AI is planning the next step on your current model…';sync();
+  store.log('collaboration.step.started',{id,instruction:words});
+  try{
+   if(studio.modelAgent.waitingForAnswer)await studio.modelAgent.answerInstruction(words,instructionSource);
+   else{
+    if(pending&&!question&&pending.refinement?.state!=='failed')await acceptPending();
+    if(studio.aiDraftReview.active&&studio.aiDraftReview.hasChanges&&!studio.aiDraftReview.busy)await studio.aiDraftReview.accept();
+    releaseNativePreview();clear();
+    await studio.modelAgent.submitInstruction(collaborationStepPrompt(words,question),'cad-collaboration');
+   }
+   const run=store.session.lastAIRun;
+   if(run?.state==='failed')throw Error(run.error||'The CAD step needs another attempt.');
+   if(run?.state==='running'){status.textContent='Connection interrupted · AI will continue when connected';return;}
+   if(!hadBody&&studio.surfaceModels?.().some(m=>!m.hidden))document.querySelector('#desktop-3d').click();
+   const message=run?.answer||'Step processed. Review the current model and describe the next change.';
+   partUI.chat.reply('collaboration:'+id,message);status.textContent=run?.state==='waiting_for_answer'?'AI is waiting for your answer.':'Step ready · review, then keep designing';
+   store.log('collaboration.step.finished',{id,runId:run?.id,state:run?.state});
+   if(field.value===submitted){field.value='';store.session.decisionInstruction='';userBuildInstruction='';advanceTurn(true);}
+  }catch(error){status.textContent='This step needs attention · see Chat';partUI.chat.reply('collaboration:'+id,error.message);store.log('collaboration.step.error',{id,message:error.message});}
+  finally{busy=false;progress.stop();sync();await store.flush();if(queued){clearTimeout(timer);timer=setTimeout(()=>void fit(),300);}}
+ }
  async function fit(){
 
   if(busy||applying){status.textContent='New input queued…';return;}
@@ -453,6 +481,9 @@ export async function initDecisionSketchLab({studio,store}){
    store.log('decision.part.continued',{solidIds:(store.session.desktopSolids||[]).map(s=>s.id)});
   }
   publishTypedInput();
+  if((buildPressed||userBuildInstruction?.trim())&&text()?.trim()){
+   const words=text();buildPressed=false;await collaborativeStep(words);return;
+  }
   const before=localDesktopEvidence(studio,store),existingEdit=!before.strokes.length&&!!text()&&before.figures.some(f=>!f.hidden);if(!before.strokes.length&&!existingEdit){queued=false;status.textContent='Draw or select a sketch first.';sync();if(activeTurn)advanceTurn();return;}
 
   const explicitBuild=buildPressed;buildPressed=false;
@@ -549,7 +580,7 @@ export async function initDecisionSketchLab({studio,store}){
    assertDesktopCurrent(studio,store,before);hideNoise(result);evidence=localDesktopEvidence(studio,store);if(existingEdit)evidence.instructionTargets=before.instructionTargets;if(!targetsToConfirm.length&&!result.refinement?.question&&(result.solidEdits?.length||result.edits.some(e=>e.extrusionMetres>0))){clear();drawFit(result);
     try{await stageNativeModel(result,evidence,token);}
     catch(error){
-     if(token!==generation||!result.refinement?.id||!error.cadRolledBack||!/CAD could not build|removed no measurable|added no measurable|one connected solid/i.test(error.message))throw error;
+     if(token!==generation||!result.refinement?.id||!error.cadRolledBack||!(error.cadCommandError||/CAD could not build|removed no measurable|added no measurable|one connected solid/i.test(error.message)))throw error;
      receipt(result,'failed',{reason:error.message});
      progress.step('Adjusting the feature after CAD verification');status.textContent='CAD rejected the feature · revising the preview…';
      const failed=result;
@@ -686,7 +717,7 @@ export async function initDecisionSketchLab({studio,store}){
  window.addEventListener('draw3d-speech-activity',({detail:d})=>{speaking=!!d.speaking;if(speaking){speechCapture??=captureViewport();listen('Listening…');}});
  window.addEventListener('draw3d-speech-misfire',()=>{speaking=false;speechCapture=null;updateSpeechPending();if(!speechPending)resumeDrawing();});
  window.addEventListener('draw3d-microphone-state',({detail:d})=>{if(['off','error'].includes(d.phase)){speaking=false;updateSpeechPending();if(!speechPending)resumeDrawing();}});
- window.addEventListener('draw3d-transcript-final',({detail:p})=>captureSpeech(p,()=>p.text));
+ window.addEventListener('draw3d-transcript-final',({detail:p})=>{if(isSpokenDesignTranscript(p))captureSpeech(p,()=>p.text);});
  window.addEventListener('draw3d-audio-final',({detail:d})=>{
   if(seenAudio.has(d.id))return;
   speaking=false;
@@ -730,18 +761,9 @@ export async function initDecisionSketchLab({studio,store}){
 
  window.addEventListener('pagehide',()=>{progress.stop();refinementAbort?.abort();clearTimeout(timer);stopAutoAccept();observer.disconnect();recoveryObserver.disconnect();resize.disconnect();studio.desktopPreviewStrokeIds=null;},{once:true});studio.decisionLab={fit,get autoPreview(){return $('#decision-auto').checked;},submitInstruction:(words,source='typed')=>receiveInstruction(words,source),accept:acceptPending,discardPending:()=>discard.onclick(),async acceptForEditing(){if(pending&&!busy&&!applying&&!pending.refinement?.question&&pending.refinement?.state!=='failed')await acceptPending();return !pending;},pauseAutoAccept:()=>stopAutoAccept({pause:true}),get applying(){return applying;},invalidate(message='Drawing changed'){lastInvalidation=message;refinementAbort?.abort();generation++;clearTimeout(timer);clear();queued=false;status.textContent=message;},get busy(){return busy||applying;},get pending(){return pending;}};partUI=initPartWorkspace({studio,store,card});const recoveryObserver=new MutationObserver(sync);recoveryObserver.observe($('#desktop-preview-accept'),{attributes:true,attributeFilter:['disabled']});recoveryObserver.observe($('#cad-feature-tree'),{childList:true});partUI.create.onclick=async()=>{
   if(busy||applying||speechPending||placementRequest)return;
-  publishTypedInput();
-  const current=text();
-  clearTimeout(timer);queued=false;
-  if(pending&&!pending.refinement?.question&&pending.refinement?.state!=='failed')await acceptPending();
-  if(busy||applying||placementRequest)return;
-  const visibleIds=new Set(studio.desktopDrawing.summary().filter(f=>!f.hidden&&!f.construction).map(f=>f.id));
-  const linked=new Set((store.session.decisionSketches||[]).filter(r=>visibleIds.has(r.figureId)).flatMap(figureWorkCaseIds));
-  const lastBuild=cases.findLast(c=>c.creationMode==='build'&&c.feedback?.some(f=>f.verdict==='accepted'))?.at??cases.find(c=>linked.has(c.id))?.at??Date.now();
-  const recent=cases.filter(c=>(linked.has(c.id)||c.at>=lastBuild)&&c.creationMode!=='build'&&c.feedback?.at(-1)?.verdict!=='discarded'&&c.work?.instruction&&!c.work.instruction.startsWith('Create or modify the editable')).slice(-12);
-  const directions=[...new Set([...recent.map(c=>c.work.instruction),current].filter(Boolean))].join('\n');
-  buildPressed=true;
-  receiveInstruction('Create or modify the editable 3D model. Follow the design brief below. The sketch sections give position, planes and scale. When the request asks for a new shape, design it from the brief. '+directions.slice(-3800),'typed');
+  publishTypedInput();const words=text().trim();
+  if(!words&&((store.session.desktopSolids||[]).length||studio.surfaceModels?.().some(m=>!m.hidden))){status.textContent='Describe or sketch the next change to your model.';$('#decision-instruction').focus();return;}
+  buildPressed=true;receiveInstruction(words||'Create the next editable 3D part from the current sketch. Preserve existing work and ask about essential missing design choices.','typed');
  };
  partUI.retryVoice.onclick=()=>{
   if(!failedSpeech)return;

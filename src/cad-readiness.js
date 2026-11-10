@@ -1,4 +1,9 @@
 export function isCadDocument(frame){try{return !!frame.getAttribute('src')&&frame.contentWindow?.location.pathname==='/cad/index.html';}catch{return false;}}
+export async function ensureCadEditing(api){
+ const status=api.editingStatus?.();if(!status||status.mode==='build')return;
+ api.enableEditing();const deadline=Date.now()+4000;
+ while(api.editingStatus().mode!=='build'){if(Date.now()>deadline)throw Error(api.editingStatus().reason||'CAD editing mode could not resume.');await new Promise(resolve=>setTimeout(resolve,40));}
+}
 export async function waitForCadEditor(frame,{timeoutMs=180000,onProgress=()=>{},pause=()=>new Promise(resolve=>setTimeout(resolve,100))}={}){
  const deadline=Date.now()+timeoutMs;
  for(;;){
