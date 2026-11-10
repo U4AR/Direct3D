@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {groupStrokes} from '../src/decision-sketch/recognize.js';
+import {fitDecisionResponse} from '../scripts/decision-sketch-api.mjs';
+import {verifyDecisionFigure} from '../src/decision-sketch/harness.js';
+const fixture=JSON.parse(await readFile(new URL('./fixtures/generated-sketches-v1/cases.json',import.meta.url),'utf8'));
+const saved=JSON.parse(await readFile(new URL('../artifacts/generated-sketches-v1/combined.json',import.meta.url),'utf8'));
+test('generated raster paths retain independent wheels and genuinely open contours',()=>{assert.equal(fixture.cases.length,12);for(const c of fixture.cases){assert.equal(c.extraction.pathCount,c.expected.kinds.length,c.id);assert.equal(c.extraction.closedPathCount,c.expected.closed,c.id);for(const s of c.strokes){assert.ok(s.points.length>10);assert.ok(s.points.every(p=>p.length===3&&p.every(Number.isFinite)));}}const car=fixture.cases.find(c=>c.id==='car');assert.equal(groupStrokes(car.strokes,car.plane).length,3);for(const id of ['open-U','S-curve'])assert.equal(fixture.cases.find(c=>c.id===id).extraction.endpointPixels,2);});
+for(const c of fixture.cases)test('saved decision replay preserves generated '+c.id+' geometry and constraints',()=>{const original=saved.results.find(r=>r.id===c.id);assert.ok(original.result);const result=fitDecisionResponse(c,groupStrokes(c.strokes,c.plane),{answers:original.result.decisions});assert.deepEqual(result.results.map(r=>r.kind),original.result.results.map(r=>r.kind));assert.equal(result.results.filter(r=>r.constraints.closed).length,c.expected.closed);for(let i=0;i<result.results.length;i++){const r=result.results[i];assert.ok(r.metrics.relativeMax<=.06);verifyDecisionFigure(result.edits[i],{kind:r.kind,constraints:r.constraints});}if(c.expected.symmetry)assert.equal(result.results[0].constraints.symmetry,c.expected.symmetry);});

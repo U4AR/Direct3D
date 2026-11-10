@@ -1,0 +1,90 @@
+import * as T from "three";
+import {projectSelectionPoint,closedSelectionLasso,bodiesInsideLasso} from './body-selection.js';
+import {meshGrabContainsPoint,bodyAllowsCavityGrab,magneticTransform,precisionMotion} from './object-grab.js';
+import {TransformControls} from "three/addons/controls/TransformControls.js";
+export function grabDelta(start,current){return current.clone().multiply(start.clone().invert());}
+export function twoHandDelta(startA,startB,currentA,currentB){
+ const old=new T.Vector3().subVectors(startB,startA),next=new T.Vector3().subVectors(currentB,currentA);
+ if(old.length()<.04||next.length()<.02)return null;
+ const scale=Math.max(.05,Math.min(20,next.length()/old.length()));
+ const q=new T.Quaternion().setFromUnitVectors(old.clone().normalize(),next.clone().normalize());
+ return new T.Matrix4().compose(currentA.clone().add(currentB).multiplyScalar(.5),q,new T.Vector3(scale,scale,scale)).multiply(new T.Matrix4().makeTranslation(...startA.clone().add(startB).multiplyScalar(-.5).toArray()));
+}
+export function initObjectManipulation({studio,store,models,apply,persist,report,canGrab=()=>true,onSelection=()=>{}}){
+ const selected=new Set(),inputs=new Map();let enabled=false,drag=null,directSelected=false,frameInputs=new Map(),magnetEnabled=true,snapStatus="",lasso=null;const lassoBlockedKeys=new Set();
+ const root=document.createElement("div");root.className="object-tools";root.hidden=true;
+ root.innerHTML='<strong>Objects</strong><button data-mode="translate">Move</button><button data-mode="rotate">Rotate</button><button data-mode="scale">Scale</button><button data-all>All objects</button><button data-clear>Unselect</button><button data-done>Done</button><label><input type="checkbox" data-magnet checked> Magnetic alignment</label><span data-label>Point + pinch / trigger to select. Hold grip or make a fist to grab; two hands scale and rotate.</span>';
+ studio.container.append(root);
+ const toggle=document.createElement("button");toggle.id="objects-mode";toggle.textContent="Objects";document.querySelector(".workspace-tabs")?.append(toggle);
+ const pivot=new T.Object3D();studio.scene.add(pivot);
+ const controls=new TransformControls(studio.camera,studio.renderer.domElement);controls.setSpace("world");controls.setSize(.7);studio.scene.add(controls.getHelper());
+ const outline=new T.Box3Helper(new T.Box3(),0xbcf477);outline.visible=false;studio.scene.add(outline);
+ const guide=new T.Group();guide.name='Magnetic alignment target';guide.visible=false;const axes=new T.AxesHelper(.12);axes.material.depthTest=false;axes.renderOrder=100;guide.add(axes);const dot=new T.Mesh(new T.SphereGeometry(.006,12,8),new T.MeshBasicMaterial({color:0x64dfff,depthTest:false}));dot.renderOrder=101;guide.add(dot);studio.scene.add(guide);
+ const lassoGeometry=new T.BufferGeometry(),lassoPositions=new Float32Array(256*3);lassoGeometry.setAttribute('position',new T.BufferAttribute(lassoPositions,3).setUsage(T.DynamicDrawUsage));lassoGeometry.setDrawRange(0,0);const lassoLine=new T.Line(lassoGeometry,new T.LineBasicMaterial({color:0x7bffc4,depthTest:false,transparent:true,opacity:.9}));lassoLine.name='Grab hand selection circle';lassoLine.visible=false;lassoLine.frustumCulled=false;lassoLine.renderOrder=120;studio.scene.add(lassoLine);
+ const workspaceOrigin=studio.controls.target?.clone?.()||new T.Vector3(0,1,-.6);
+ const setMagnetEnabled=value=>{magnetEnabled=!!value;root.querySelector('[data-magnet]').checked=magnetEnabled;store.session.magneticAlignment=magnetEnabled;guide.visible=false;outlineUpdate();studio.updateHUD();};
+ if(store.session.magneticAlignment===false){magnetEnabled=false;root.querySelector('[data-magnet]').checked=false;}
+ const worldBox=m=>{if(!m.mesh.geometry.boundingBox)m.mesh.geometry.computeBoundingBox();m.mesh.updateWorldMatrix(true,false);return m.mesh.geometry.boundingBox.clone().applyMatrix4(m.mesh.matrixWorld);};
+ const items=()=>{const result=[];for(const id of [...selected]){const m=models.get(id);if(!m||m.hidden||m.mesh.visible===false)selected.delete(id);else result.push(m);}return result;};
+ const snapshot=()=>items().map(m=>{m.mesh.updateWorldMatrix(true,false);return {id:m.id,matrix:m.mesh.matrixWorld.clone(),scale:[...m.scale]};});
+ function outlineUpdate(){outline.box.makeEmpty();for(const m of items())outline.box.union(worldBox(m));outline.visible=(enabled||directSelected)&&selected.size>0;root.querySelector('[data-label]').textContent=selected.size?`${selected.size} selected - fist inside: move / rotate; magnet ${magnetEnabled?'on':'off'}`:'Point + pinch / trigger to select';}
+ function anchor(){outlineUpdate();if(!selected.size){controls.detach();return;}pivot.position.copy(outline.box.getCenter(new T.Vector3()));pivot.quaternion.identity();pivot.scale.setScalar(1);pivot.updateMatrixWorld(true);if(enabled&&!studio.renderer.xr.isPresenting)controls.attach(pivot);else controls.detach();}
+ function grabStatus(text){if(snapStatus===text)return;snapStatus=text;studio.drawVoiceHUD?.();}
+ function inside(point){return [...models.values()].filter(m=>!m.hidden&&m.mesh.visible&&meshGrabContainsPoint(m.mesh,point,{allowCavity:bodyAllowsCavityGrab(m)})).sort((a,b)=>worldBox(a).getSize(new T.Vector3()).length()-worldBox(b).getSize(new T.Vector3()).length())[0];}
+
+ function magneticProfile(target){return {size:worldBox(target).getSize(new T.Vector3()).length(),origins:[{point:new T.Vector3(),label:'Origin'},{point:workspaceOrigin.clone(),label:'Workspace'},{point:worldBox(target).getCenter(new T.Vector3()),label:'Home'}],localOrientation:(()=>{const a=target.blender?.features?.find(f=>f.operation.startsWith('create_'))?.parameters?.axes||studio.store.session.spatialObjects?.find(f=>f.modelId===target.id)?.parameters?.axes;return a?new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(...a.map(v=>new T.Vector3(...v)))):new T.Quaternion();})()};}
+ function sampleMotion(pose,time=performance.now()){const previous=drag.lastSample;if(previous){const dt=Math.max(.001,Math.min(1,(time-previous.time)/1000)),p=new T.Vector3().setFromMatrixPosition(pose),oldP=new T.Vector3().setFromMatrixPosition(previous.pose),q=new T.Quaternion().setFromRotationMatrix(pose),oldQ=new T.Quaternion().setFromRotationMatrix(previous.pose);drag.precision=precisionMotion(p.distanceTo(oldP)/dt,q.angleTo(oldQ)/dt,drag.size);}drag.lastSample={pose:pose.clone(),time};}
+ function finish(){if(!drag)return;const unchanged=drag.kind==='direct-xr'&&!drag.moved;const before=drag.base.map(s=>({id:s.id,matrix:s.matrix.toArray()}));drag=null;guide.visible=false;grabStatus("");outline.material.color.set(0xbcf477);if(unchanged){anchor();return;}onSelection([...selected]);store.log("objects.transform",{before,after:items().map(m=>({id:m.id,version:m.version,position:m.position,rotationDeg:m.rotationDeg,scale:m.scale}))});persist().catch(report);anchor();}
+ function transform(delta,translationOnly=false,magnet=false){studio.lastObjectInputAt=performance.now();let labels=[];for(const s of drag.base){const m=models.get(s.id);if(!m)continue;let matrix=delta.clone().multiply(s.matrix);if(magnet){if(!m.mesh.geometry.boundingBox)m.mesh.geometry.computeBoundingBox();const snapped=magneticTransform(matrix,m.mesh.geometry.boundingBox.getCenter(new T.Vector3()),magnetEnabled&&!drag.precision,{sizeMetres:drag.size,origins:drag.origins,localOrientation:drag.localOrientation});matrix=snapped.matrix;labels.push(...snapped.labels);guide.visible=!!snapped.target&&snapped.labels.length>0;if(guide.visible){guide.position.copy(snapped.target);axes.scale.setScalar(Math.max(.25,Math.min(3,drag.size)));}}const p=new T.Vector3(),q=new T.Quaternion(),scale=new T.Vector3();matrix.decompose(p,q,scale);if(!scale.toArray().every(v=>v>1e-6&&v<1e6))continue;m.position=p.toArray();if(!translationOnly){m.rotationDeg=new T.Euler().setFromQuaternion(q).toArray().slice(0,3).map(T.MathUtils.radToDeg);m.scale=magnet?[...s.scale]:scale.toArray();}m.version++;apply(m,false,new Set(),{independentMotion:true});studio.nativeSelection?.syncTransform?.(m);}if(magnet){labels=[...new Set(labels)];grabStatus(drag.precision&&magnetEnabled?'Precision move · magnets bypassed (slow)':labels.length?'Magnet: '+labels.join(' · '):'Fist grab · move / rotate');outline.material.color.set(labels.length?0x8cbcff:0xbcf477);}outlineUpdate();}
+ function setEnabled(value){cancelLasso();finish();directSelected=false;enabled=value;studio.endAll();root.hidden=!enabled;toggle.setAttribute("aria-pressed",String(enabled));controls.enabled=enabled;studio.controls.enabled=!enabled&&studio.mode==="orbit";if(!enabled){controls.detach();outline.visible=false;}else anchor();studio.updateHUD();}
+ function select(id,add=false){cancelLasso();finish();directSelected=false;if(!add)selected.clear();if(id)selected.add(id);anchor();onSelection([...selected]);store.log("objects.selection",{modelIds:[...selected]});}
+ function selectMany(ids){cancelLasso();finish();selected.clear();for(const id of ids){const m=models.get(id);if(m&&!m.hidden&&m.mesh.visible)selected.add(id);}directSelected=true;studio.nativeSelection?.setModel?.(null);studio.nativeSelection?.deactivate?.();anchor();onSelection([...selected]);store.log('objects.selection',{modelIds:[...selected],source:'grab-hand-circle'});return [...selected];}
+ function cancelLasso(){lasso=null;lassoLine.visible=false;lassoGeometry.setDrawRange(0,0);if(!drag)grabStatus('');}
+ function pinchSelect({key,point,ray,pressed,blocked=false,time=performance.now(),camera}){
+  if(!pressed)lassoBlockedKeys.delete(key);if(blocked||drag){if(pressed)lassoBlockedKeys.add(key);if(lasso?.key===key)cancelLasso();return false;}if(lassoBlockedKeys.has(key))return true;if(lasso?.key===key)lasso.seen=true;
+  if(pressed&&!lasso){if(!ray)return false;const view=camera||(studio.renderer.xr.isPresenting?studio.renderer.xr.getCamera(studio.camera):studio.camera);view.updateWorldMatrix(true,false);const worldToClip=new T.Matrix4().multiplyMatrices(view.projectionMatrix,view.matrixWorld.clone().invert()),p=projectSelectionPoint(point,worldToClip);lasso={key,started:time,ray:ray.clone(),worldToClip,points:p?[p]:[],worldPoints:p?[point.slice()]:[],moved:false,seen:true};return true;}
+  if(!lasso||lasso.key!==key)return false;
+  if(pressed){const projected=projectSelectionPoint(point,lasso.worldToClip);if(!projected||projected[2]<-1||projected[2]>1){lassoBlockedKeys.add(key);cancelLasso();return true;}const prior=lasso.points.at(-1);if(!prior||Math.hypot(projected[0]-prior[0],projected[1]-prior[1])>.006){if(lasso.points.length>=256){lasso.points=lasso.points.filter((_,i)=>i%2===0);lasso.worldPoints=lasso.worldPoints.filter((_,i)=>i%2===0);}lasso.points.push(projected);lasso.worldPoints.push(point.slice());const first=lasso.points[0];lasso.moved||=Math.hypot(projected[0]-first[0],projected[1]-first[1])>.06;if(lasso.moved){lasso.worldPoints.forEach((p,i)=>lassoPositions.set(p,i*3));lassoGeometry.attributes.position.needsUpdate=true;lassoGeometry.setDrawRange(0,lasso.worldPoints.length);lassoLine.visible=true;grabStatus('Pinch circle · select enclosed bodies');}}return true;}
+  const gesture=lasso;cancelLasso();const worldExtent=new T.Box3().setFromPoints(gesture.worldPoints.map(p=>new T.Vector3(...p))).getSize(new T.Vector3()).length();if(worldExtent>.025&&closedSelectionLasso(gesture.points,time-gesture.started)){const ids=bodiesInsideLasso(models.values(),gesture.points,gesture.worldToClip);selectMany(ids);studio.updateHUD?.(undefined,ids.length+' bodies selected');return true;}if(!gesture.moved)studio.nativeSelection?.pickXR?.(gesture.ray);else studio.updateHUD?.(undefined,'Close the selection circle to select bodies');return true;
+ }
+ function pick(ray,add=false){const caster=new T.Raycaster();caster.ray.copy(ray);const hit=caster.intersectObjects([...models.values()].filter(m=>!m.hidden).map(m=>m.mesh),false)[0];const m=hit&&[...models.values()].find(m=>m.mesh===hit.object);select(m?.id,add);return !!m;}
+ root.querySelector('[data-magnet]').onchange=e=>setMagnetEnabled(e.target.checked);
+ toggle.onclick=()=>setEnabled(!enabled);root.querySelector('[data-done]').onclick=()=>setEnabled(false);root.querySelector('[data-clear]').onclick=()=>select(null);const selectAll=()=>{finish();selected.clear();for(const m of models.values())if(!m.hidden)selected.add(m.id);anchor();onSelection([...selected]);};root.querySelector('[data-all]').onclick=selectAll;
+ root.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{controls.setMode(b.dataset.mode);controls.setSpace(b.dataset.mode==='scale'?'local':'world');});
+ controls.addEventListener('mouseDown',()=>{if(!canGrab()){controls.detach();return;}pivot.updateMatrixWorld(true);drag={kind:'desktop',base:snapshot(),start:pivot.matrixWorld.clone(),...magneticProfile(items()[0]),lastSample:{pose:pivot.matrixWorld.clone(),time:performance.now()}};studio.controls.enabled=false;});
+ controls.addEventListener('objectChange',()=>{if(drag?.kind==='desktop'){if(controls.getMode()==='scale'){const s=pivot.scale.toArray().sort((a,b)=>Math.abs(b-1)-Math.abs(a-1))[0];pivot.scale.setScalar(Math.max(.01,s));}pivot.updateMatrixWorld(true);sampleMotion(pivot.matrixWorld);transform(grabDelta(drag.start,pivot.matrixWorld),false,selected.size===1&&controls.getMode()!=='scale');}});
+ controls.addEventListener('mouseUp',finish);
+ studio.renderer.domElement.addEventListener('pointerdown',e=>{if(!enabled||studio.renderer.xr.isPresenting||controls.axis)return;e.stopImmediatePropagation();e.preventDefault();const r=studio.renderer.domElement.getBoundingClientRect(),raycaster=new T.Raycaster();raycaster.setFromCamera(new T.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1),studio.camera);pick(raycaster.ray,e.shiftKey);},true);
+ return {get enabled(){return enabled;},get grabbing(){return !!drag;},get selectedIds(){return items().map(m=>m.id);},get snapStatus(){return snapStatus;},get magnetEnabled(){return magnetEnabled;},setMagnetEnabled,setEnabled,finish,select,selectMany,selectAll,pinchSelect,cancelLasso,grabTargetAt:inside,
+  startXRGrab(key,pose){
+   if(enabled||!pose||!canGrab())return false;
+   const target=inside(new T.Vector3().setFromMatrixPosition(pose));if(!target)return false;items();
+   if(!selected.has(target.id)){select(target.id);studio.nativeSelection?.setModel?.(target);}
+   finish();directSelected=true;drag={kind:'direct-xr',key,base:snapshot(),start:pose.clone(),moved:false,lastSample:{pose:pose.clone(),time:performance.now()},...magneticProfile(target)};anchor();grabStatus('Fist grab · move / rotate');return true;
+  },
+  directInput({key,pose,pressed,blocked,time}){if(drag?.kind==='direct-xr'&&drag.key===key)frameInputs.set(key,{pose,time,pressed:!!pose&&pressed&&!blocked});},
+  beginFrame(){frameInputs=new Map();if(lasso)lasso.seen=false;if(studio.renderer.xr.isPresenting)controls.detach();},
+  input({key,pose,point,ray,pressed,selectPressed,blocked,time,handFist=false}){if(!enabled)return;const old=inputs.get(key)||{};
+   if(handFist&&pressed&&!old.pressed&&!blocked){const target=pose&&inside(new T.Vector3().setFromMatrixPosition(pose));if(!target)blocked=true;else if(!selected.has(target.id))select(target.id);}
+   const grabHandSelection=key.startsWith(studio.grabHand+'-');if(grabHandSelection)pinchSelect({key,point:point||(pose?new T.Vector3().setFromMatrixPosition(pose).toArray():null),ray,pressed:selectPressed,blocked:blocked||handFist&&pressed,time});else if(!blocked&&ray&&selectPressed&&!old.selectPressed&&!pressed)pick(ray);if(!blocked&&ray&&pressed&&!old.pressed&&!selected.size)pick(ray);const value={pose,pressed:!!pose&&pressed&&!blocked,selectPressed,blocked,time,handFist};inputs.set(key,value);frameInputs.set(key,value);},
+  endFrame(){
+   if(lasso&&lasso.seen===false){lassoBlockedKeys.add(lasso.key);cancelLasso();}
+   if(drag?.kind==='direct-xr'){
+    const input=frameInputs.get(drag.key);
+    if(!input?.pressed||!canGrab()||drag.base.some(s=>!models.get(s.id)||models.get(s.id).hidden)){finish();return;}
+    const now=input.time??performance.now(),previous=drag.lastSample,dt=Math.max(.001,Math.min(1,(now-previous.time)/1000)),p=new T.Vector3().setFromMatrixPosition(input.pose),oldP=new T.Vector3().setFromMatrixPosition(previous.pose),q=new T.Quaternion().setFromRotationMatrix(input.pose),oldQ=new T.Quaternion().setFromRotationMatrix(previous.pose);
+    drag.precision=precisionMotion(p.distanceTo(oldP)/dt,q.angleTo(oldQ)/dt,drag.size);drag.lastSample={pose:input.pose.clone(),time:now};
+    const movement=grabDelta(drag.start,input.pose),offset=new T.Vector3().setFromMatrixPosition(input.pose).distanceTo(new T.Vector3().setFromMatrixPosition(drag.start));
+    const startQ=new T.Quaternion().setFromRotationMatrix(drag.start),currentQ=new T.Quaternion().setFromRotationMatrix(input.pose),angle=startQ.angleTo(currentQ);
+    if(!drag.moved&&offset<.003&&angle<T.MathUtils.degToRad(2))return;
+    if(drag.lastPose&&input.pose.elements.every((v,i)=>Math.abs(v-drag.lastPose.elements[i])<1e-7))return;
+    drag.moved=true;drag.lastPose=input.pose.clone();transform(movement,false,drag.base.length===1);return;
+   }
+   if(!enabled)return;for(const key of inputs.keys())if(!frameInputs.has(key))inputs.delete(key);const hands=[...frameInputs].filter(([,v])=>v.pressed).slice(0,2),keys=hands.map(([k])=>k).join();
+   if(!hands.length||!selected.size){finish();return;}
+   if(!drag||drag.keys!==keys){finish();if(!canGrab())return;drag={keys,base:snapshot(),poses:hands.map(([,v])=>v.pose.clone()),...magneticProfile(items()[0]),lastSample:{pose:hands[0][1].pose.clone(),time:hands[0][1].time??performance.now()}};return;}
+   const delta=hands.length===1?grabDelta(drag.poses[0],hands[0][1].pose):twoHandDelta(...drag.poses.map(m=>new T.Vector3().setFromMatrixPosition(m)),...hands.map(([,v])=>new T.Vector3().setFromMatrixPosition(v.pose)));
+   if(delta){const magnetic=hands.length===1&&hands[0][1].handFist&&selected.size===1;if(magnetic)sampleMotion(hands[0][1].pose,hands[0][1].time);transform(delta,false,magnetic);}
+  }
+ };
+}

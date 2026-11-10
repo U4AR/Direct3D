@@ -1,0 +1,9 @@
+import {buildDecisionRequest,fitDecisionResponse} from '../scripts/decision-sketch-api.mjs';
+export const cameraView={kind:'desktop',cameraToWorld:[1,0,0,0,0,1,0,0,0,0,1,0,0,0,2,1],projectionMatrix:[1,0,0,0,0,1,0,0,0,0,-1,-1,0,0,-.2,0]};
+export function fixture({tilted=false,view=false}={}){
+ const a=tilted?1.05:0,plane={id:'front',origin:[0,0,0],xAxis:[Math.cos(a),0,-Math.sin(a)],yAxis:[0,1,0],normal:[Math.sin(a),0,Math.cos(a)]},ring=Array.from({length:81},(_,i)=>[.05*Math.cos(i*Math.PI/40),.05*Math.sin(i*Math.PI/40),0]);
+ const points=tilted?ring.map(p=>{const eye=[0,0,2],ray=p.map((v,k)=>v-eye[k]),den=ray.reduce((n,v,k)=>n+v*plane.normal[k],0),t=-2*plane.normal[2]/den;return eye.map((v,k)=>v+t*ray[k]);}):ring;
+ const data={plane,designOrigin:[0,0,0],referencePlanes:[plane],prompt:'Clean this sketch',strokes:[{id:'ring',points,plane,...(view||tilted?{view:structuredClone(cameraView)}:{})}],...(view||tilted?{view:structuredClone(cameraView)}:{})},{body,groups}=buildDecisionRequest(data),response={answers:body.questions.map(q=>({type:'choice',name:q.name,choice:q.name==='instruction_subject'?'geometry':q.name==='drawing_representation'?'curves':q.name.endsWith('.role')?'geometry':q.name.endsWith('.primitive')?(tilted?'ellipse':'circle'):q.name.endsWith('.closure')?'closed':q.name.endsWith('.symmetry')?'both':q.name.endsWith('.alignment')?'drawn':q.name.endsWith('.intent')?'regularized_outline':q.name.endsWith('.curve_style')?'flexible':q.choices[0].value}))};
+ return {saved:{data,body},fit:{...fitDecisionResponse(data,groups,response),id:crypto.randomUUID(),cost:{usd:.0002,usageKnown:true}}};
+}
+export function operation(referenceId,values={}){return {referenceId,action:'adjust',translationUV:null,rotationDegrees:null,scaleUV:null,dimensions:null,replacement:null,projection:null,...values};}

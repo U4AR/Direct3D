@@ -1,0 +1,24 @@
+import {test,expect} from '@playwright/test';
+test('desktop board fits, exports, recovers and keeps the VR session separate',async({page,context})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));let ai=0;page.on('request',r=>{if(r.url().includes('/api/agent/desktop-edit?'))ai++;});
+ await page.goto('http://localhost:5173/desktop.html');await expect(page.locator('body')).toHaveAttribute('data-desktop-ready','true');await page.locator('#desktop-flat').click();
+ await expect(page.locator('#agent-connection')).toContainText('Direct AI connected',{timeout:20000});await expect(page.locator('#agent-instruction-text')).toBeVisible();
+ const box=await page.locator('#viewport canvas').boundingBox(),x=box.x+box.width*.25,y=box.y+box.height*.4;
+ await page.mouse.move(x,y);await page.mouse.down();for(let i=1;i<=40;i++)await page.mouse.move(x+i*3,y+i*.3);await page.mouse.up();
+ await expect(page.locator('#fit-status')).toContainText('line ·',{timeout:30000});expect(ai).toBe(0);
+ await expect(page.locator('#geometry-count')).toContainText('1 strokes');await page.locator('#undo').click();await expect(page.locator('#geometry-count')).toContainText('0 strokes');await page.locator('#redo').click();await expect(page.locator('#geometry-count')).toContainText('1 strokes');
+ const downloadPromise=page.waitForEvent('download');await page.locator('#desktop-svg').click();const download=await downloadPromise;expect(download.suggestedFilename()).toBe('draw3d-desktop.svg');
+ await page.locator('#desktop-3d').click();await expect(page.locator('#view-mode')).toContainText('INSPECT');await page.locator('#desktop-flat').click();await page.locator('#desktop-fit').click();
+ await page.locator('#desktop-flat').click();
+ await page.locator('#desktop-output').selectOption('drawing');
+ await page.locator('#agent-instruction-text').fill('Make this a clean horizontal reference line.');
+ await page.route('**/api/agent/desktop-edit?*',route=>route.fulfill({json:{ready:true,model:'test',reasoning:'medium',run:{id:'desktop-handoff',mode:'direct',state:'running',events:[]},edit:{summary:'Test handoff received',assumptions:[],question:null,edits:[]}}}));
+ await page.route('**/api/agent/desktop-applied?*',route=>route.fulfill({json:{ready:true,model:'test',run:{id:'desktop-handoff',mode:'direct',state:'completed',answer:'Test handoff received',events:[]}}}));
+ const requestPromise=page.waitForRequest(r=>r.url().includes('/api/agent/desktop-edit?'));
+ await page.locator('#ai-run').click();const request=await requestPromise;
+ expect(request.postDataJSON().prompt).toContain('native planar CAD sketches');expect(request.postDataJSON().prompt).toContain('clean horizontal reference line');
+ await page.screenshot({path:'artifacts/desktop-studio.png'});
+ await page.reload();await expect(page.locator('body')).toHaveAttribute('data-desktop-ready','true');await expect(page.locator('#geometry-count')).toContainText('1 strokes');
+ const vr=await context.newPage();await vr.goto('http://localhost:5173/');await expect(vr.locator('#geometry-count')).toContainText('0 strokes');await expect(vr.locator('#vr')).toBeVisible();expect(await page.evaluate(()=>localStorage.getItem('draw3d.active')!==localStorage.getItem('draw3d-desktop.active'))).toBe(true);await vr.close();
+ await page.setViewportSize({width:760,height:900});await expect(page.locator('#agent-instruction-text')).toBeVisible();await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);expect(errors).toEqual([]);
+});

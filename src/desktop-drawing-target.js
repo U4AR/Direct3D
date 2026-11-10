@@ -1,0 +1,5 @@
+// A screen capture plane is a provisional reference unless the human chose it.
+export function desktopDrawingTarget({plane,explicit=false,surface=null}={}){
+ if(surface)return {kind:'surface',explicit:true,modelId:surface.modelId,modelVersion:surface.modelVersion??surface.version,scope:surface.scope||'face',faceIndex:surface.faceIndex,geometryVersion:surface.geometryVersion,faceIndices:surface.faceIndices,frame:surface.frame,nativeFrame:surface.nativeFrame};
+ return {kind:explicit?'plane':'infer',explicit:!!explicit,planeId:explicit?plane?.id:null,referencePlane:plane,policy:explicit?'Selected capture support: prefer this orientation. Infer a parallel offset from drawing POV/geometry when intended; an explicit user request for this exact plane/depth takes priority.':'Mouse rays record the ink in this view. Infer the intended support from the image, nearby sketches, faces and instructions. Prefer a related sketch orientation for a parallel section; orbiting the camera alone does not choose a design plane.'};
+}

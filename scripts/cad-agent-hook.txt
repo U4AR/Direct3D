@@ -1,0 +1,33 @@
+  // Draw3D integration: native commands, independent from viewport controls.
+  useEffect(() => {
+    (window as any).__draw3dCAD = {
+      document: () => structuredClone(managerRef.current?.document ?? null),
+      geometryStatus: () => ({phase:geometry.state.phase,error:geometry.state.error}),
+      operations: () => Object.keys(commandFactories),
+      busy: () => busy || geometryBusy || sketchSolving || Boolean(doc && geometry.state.phase !== 'ready'),
+      create: async (name: string, units: UnitSystem) => {
+        if (busy || geometryBusy) throw new Error('CAD is busy');
+        await handleCreateProject(name, units);
+        return managerRef.current?.document.projectId;
+      },
+      execute: (operation: string, payload: any, version: number) => {
+        if (busy || geometryBusy || sketchSolving) throw new Error('CAD is busy; retry after the current edit');
+        if (!managerRef.current) throw new Error('Create or open a CAD project first');
+        if (managerRef.current.document.version !== version) throw new Error('CAD version conflict; read the document again');
+        if (!Object.hasOwn(commandFactories, operation)) throw new Error('Unknown CAD operation');
+        const command = (commandFactories as any)[operation](...(Array.isArray(payload) ? payload : [payload]));
+        if (!executeCommand(command)) throw new Error('CAD rejected the command; inspect document diagnostics');
+        return {version: managerRef.current.document.version, command: JSON.parse(JSON.stringify(command))};
+      },
+      openSplineEditor: (objectId: string) => {
+        const d=managerRef.current?.document;if(!d)throw Error('Open a project first');
+        const sketch=Object.values(d.nodes).find((n:any)=>n.kind==='sketch'&&n.objectIds.includes(objectId)) as any;
+        if(!sketch)throw Error('Spline sketch not found');
+        setTool(null);dispatchInteraction({type:'enter-sketch',plane:sketch.planeRef,sketchId:sketch.sketchId});dispatchInteraction({type:'sketch-tool',tool:'select'});dispatchInteraction({type:'sketch-select-object',objectId});
+      },
+      restore: (snapshot: any) => {if(busy || geometryBusy)throw new Error('CAD is busy');hydrateDocument(structuredClone(snapshot),{restoreView:false});},
+      startSketch: (plane: PlaneId = 'XY', sketchTool: any = 'line') => {startSketchOnPlane(plane);dispatchInteraction({type:'sketch-tool',tool:sketchTool});},
+      sketchOnSelectedFace: (sketchTool: any = 'line') => {if(interaction.mode!=='face')throw new Error('Select a planar face in the CAD viewport first');if(!startSketchOnFace(interaction.target))throw new Error('The selected face cannot host a sketch');dispatchInteraction({type:'sketch-tool',tool:sketchTool});},
+      undo: handleUndo, redo: handleRedo
+    };
+  });

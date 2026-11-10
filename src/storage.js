@@ -1,6 +1,9 @@
+import {createSessionWriter,automaticSessionSnapshotDue} from './session-writer.js';
+import {migrateActivityDetails} from './activity-summary.js';
 import { zipSync, strToU8 } from "fflate";
 export class SessionStore {
-  constructor(onStatus) {
+  constructor(onStatus, { namespace = "draw3d" } = {}) {
+    this.namespace = namespace;
     this.onStatus = onStatus;
     this.pending = [];
     this.started = performance.now();
@@ -8,8 +11,17 @@ export class SessionStore {
     this.flushChain = Promise.resolve();
   }
   async open() {
+    if (navigator.locks) {
+      await new Promise((resolve, reject) => {
+        this.writerLock = navigator.locks.request(`${this.namespace}.active-writer`, { ifAvailable: true }, lock => {
+          if (!lock) { reject(new Error("Draw3D is already open in another tab. Use that tab or close it, then reload here.")); return; }
+          resolve();
+          return new Promise(release => { this.releaseWriter = release; });
+        }).catch(reject);
+      });
+    }
     this.db = await new Promise((resolve, reject) => {
-      const r = indexedDB.open("draw3d-studio", 1);
+      const r = indexedDB.open(`${this.namespace}-studio`, 1);
       r.onupgradeneeded = () => {
         const db = r.result;
         db.createObjectStore("sessions", { keyPath: "id" });
@@ -19,22 +31,30 @@ export class SessionStore {
       r.onsuccess = () => resolve(r.result);
       r.onerror = () => reject(r.error);
     });
-    const oldId = localStorage.getItem("draw3d.active");
+    const requestedId = new URL(location.href).searchParams.get("session");
+    const oldId = requestedId && /^[a-f0-9-]{36}$/i.test(requestedId) ? requestedId : localStorage.getItem(`${this.namespace}.active`);
     this.session = oldId ? await this.get("sessions", oldId) : null;
     if (!this.session)
       this.session = {
-        id: crypto.randomUUID(),
+        id: requestedId && /^[a-f0-9-]{36}$/i.test(requestedId) ? requestedId : crypto.randomUUID(),
         created: new Date().toISOString(),
         schema: "draw3d.session.v1",
         strokes: [],
         transcripts: [],
         revision: 0,
+        collaborativeModeling: true,
+        freshCAD: true,
       };
-    this.sequence = this.session.sequence || 0;
-    this.offset = this.session.elapsedMs || 0;
-    localStorage.setItem("draw3d.active", this.session.id);
+    // Event batches may be newer than the batched session snapshot after a power loss.
+    const tail=await new Promise((resolve,reject)=>{const range=IDBKeyRange.bound([this.session.id],[this.session.id,[]]),r=this.db.transaction('events').objectStore('events').openCursor(range,'prev');r.onsuccess=()=>resolve(r.result?.value);r.onerror=()=>reject(r.error);});
+    this.sequence = Math.max(this.session.sequence||0,tail?.seq||0);
+    this.offset = Math.max(this.session.elapsedMs||0,tail?.t||0);
+    localStorage.setItem(`${this.namespace}.active`, this.session.id);
+    await migrateActivityDetails(this);
     await this.put("sessions", this.session);
-    this.timer = setInterval(() => this.flush().catch(() => {}), 1000);
+    this.writer=createSessionWriter(`${this.namespace}-studio`);
+    this.lastSnapshotAt=performance.now();
+    this.timer = setInterval(() => this.flush({automatic:true}).catch(() => {}), 1000);
     this.log("session.open", { recovered: !!oldId });
     return this.session;
   }
@@ -79,7 +99,7 @@ export class SessionStore {
       throw e;
     }
   }
-  flush() {
+  flush({automatic=false}={}) {
     this.flushChain = this.flushChain
       .catch(() => {})
       .then(async () => {
@@ -87,17 +107,25 @@ export class SessionStore {
         this.session.sequence = this.sequence;
         this.session.elapsedMs = this.elapsed();
         this.session.updated = new Date().toISOString();
-        const snapshot = structuredClone(this.session);
+        const persistSession=!automatic||automaticSessionSnapshotDue(performance.now(),this.lastSnapshotAt);
+        if(!persistSession&&!batch.length)return;
+        const started=performance.now();
+        // JSON data is captured once. IndexedDB's second deep serialization happens in a worker.
+        let snapshot,serializationMs;
         try {
-          await new Promise((resolve, reject) => {
-            const tx = this.db.transaction(["events", "sessions"], "readwrite");
+          const serializeStarted=performance.now();snapshot=persistSession?JSON.stringify(this.snapshotForPersistence?.()||this.session):null;serializationMs=performance.now()-serializeStarted;
+          if(this.writer&&!this.writer.failed)await this.writer.write(snapshot,batch);
+          else await new Promise((resolve, reject) => {
+            const tx = this.db.transaction(persistSession?["events", "sessions"]:["events"], "readwrite");
             batch.forEach((e) => tx.objectStore("events").put(e));
-            tx.objectStore("sessions").put(snapshot);
+            if(snapshot)tx.objectStore("sessions").put(JSON.parse(snapshot));
             tx.oncomplete = resolve;
             tx.onerror = () => reject(tx.error);
             tx.onabort = () =>
               reject(tx.error || new Error("Storage transaction aborted"));
           });
+          if(persistSession)this.lastSnapshotAt=performance.now();
+          this.lastSaveTiming={elapsedMs:performance.now()-started,mainSerializationMs:serializationMs,sessionSnapshot:persistSession,sessionCharacters:snapshot?.length||0,eventCount:batch.length,background:!!this.writer&&!this.writer.failed};
           this.onStatus("Saved on this device", false);
         } catch (e) {
           this.pending.unshift(...batch);
@@ -119,7 +147,7 @@ export class SessionStore {
     this.log("session.export");
     await this.flush();
     const files = {
-      "session.json": strToU8(JSON.stringify(this.session, null, 2)),
+      "session.json": strToU8(JSON.stringify(this.snapshotForPersistence?.()||this.session, null, 2)),
     };
     files["events.jsonl"] = strToU8(
       (await this.rows("events")).map((e) => JSON.stringify(e)).join("\n"),

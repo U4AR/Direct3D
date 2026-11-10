@@ -37,7 +37,7 @@ export async function captureSketch(
     scene = new THREE.Scene();
   drawingGroup.updateMatrixWorld(true);
   drawingGroup.traverse((object) => {
-    if (object.isMesh) {
+    if (object.isMesh && object.visible) {
       const mesh = new THREE.Mesh(object.geometry, object.material);
       mesh.applyMatrix4(object.matrixWorld);
       mesh.frustumCulled = false;

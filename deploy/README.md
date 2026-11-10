@@ -1,0 +1,18 @@
+# Linux server deployment
+
+Desktop/VR controls, native selection, hole patterns and CAD/mesh conversion: [CAD workflow](CAD-WORKFLOW.md). Verified scenarios and measured timings: [test report](TEST-REPORT.md).
+
+Requirements: Linux x86-64, Docker Engine with Compose v2 or newer, about 8 GB RAM and 15 GB free disk. Quest and desktop use the same HTTPS website; Blender and FreeCAD execute on the server, and their actual evaluated meshes appear after each operation. No native Quest installation is needed.
+
+1. Copy this project (including prepared public/cad and public/sculpt assets) to the server. From a clean source checkout the app image rebuilds the pinned browser editors automatically; this needs outbound GitHub/npm access.
+2. Create `.secrets/gemini_api_key` containing your Google AI Studio key and `.secrets/modeling_token` containing a random value (`openssl rand -hex 32`). Use `chmod 700 .secrets` and `chmod 444 .secrets/*`: the private host directory protects the files, while the unprivileged container can read its individual read-only mounts. Never pass keys as Docker build arguments or VITE variables.
+3. Run `docker compose up -d --build`. Check `docker compose ps` and `curl http://127.0.0.1:18888/api/modeling/health`. The default listener is server-local only.
+4. For Quest access, point a domain at this server. Set `DRAW3D_DOMAIN`, a bcrypt `DRAW3D_AUTH_HASH` (generate with `docker run --rm caddy:2.10.2-alpine caddy hash-password`), and `DRAW3D_AGENT_ORIGINS=https://your-domain`. Protect the environment file; dollar signs in hashes must be escaped as required by Compose. Run `docker compose --profile https up -d`. Open the HTTPS domain in Quest Browser and authenticate as `designer`. Valid HTTPS is required for microphone and WebXR on a remote server. Do not expose native worker ports.
+
+The default model is gemini-3.8-flash; set GEMINI_AGENT_MODEL to a model available to your key. Voice is passed directly as audio alongside current sketch images, measured drawing context, visible native bodies and operation receipts. Each native operation appears in the scene and the live log before the next AI move. You can interrupt with speech or drawings. Latency depends on provider and model complexity; no fixed five-second guarantee is made.
+
+Native services have separate persistent volumes, bounded CPU/memory, no shell/code execution API, no published ports, read-only images and unprivileged users. The app owns its own persistent session volume. Back up all three data volumes together. Use `docker compose down` to stop; do not add `-v` unless intentionally deleting history and native projects. For multiple users deploy isolated stacks/volumes or add tenant authorization before sharing; this is currently a single-workspace service.
+
+Exports include Blender .blend/GLB and FreeCAD .FCStd/STEP/STL. Features are replayable and dimensions editable. Booleans, fillets/chamfers, sketches, extrusion, revolve, loft and sweep are exposed as structured operations; full Blender and FreeCAD GUIs are not streamed into the headset. Source code and dependency/license inventory: [OPEN-SOURCE.md](OPEN-SOURCE.md). There are no added seat or model-count license limits; comply with upstream distribution licenses and your AI provider's billing/terms.
+
+Browser native-engine regression: `DRAW3D_TEST_URL=http://localhost:18888 npx playwright test tests/modeling-workspace.spec.js`. Live voice/drawing test: `DRAW3D_LIVE_AI=1 DRAW3D_TEST_URL=http://localhost:18888 npx playwright test tests/modeling-voice.spec.js`. Test artifacts record requests (without API keys), native receipts, geometry checks and timings.

@@ -882,3 +882,130 @@ footer {
     font-size: 9px;
   }
 }
+
+#cad-panel { display:none; margin:0; border:0; padding:0; }
+body[data-workspace="cad"] .right-panel > :not(#cad-panel) { display:none; }
+body[data-workspace="cad"] #cad-panel { display:block; }
+body[data-workspace="cad"] #empty-state { display:none; }
+body[data-workspace="cad"] .left-panel > .tool-tabs:not(.workspace-tabs),
+body[data-workspace="cad"] .left-panel > section,
+body[data-workspace="cad"] .left-bottom { display:none; }
+.cad-grid {display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0;}
+.cad-grid input {width:100%;min-width:0;background:#17212d;color:#e4eaf1;border:1px solid #35404c;border-radius:6px;padding:8px;}
+#cad-panel label {display:block;margin-top:10px;font-size:12px;color:#aab9c9;}
+#cad-panel .two-buttons {margin:10px 0;}
+#cad-operations {min-height:110px;}
+#cad-result,#cad-engine-status {font-size:12px;line-height:1.5;overflow-wrap:anywhere;}
+
+.workspace-tabs {flex-wrap:wrap}
+#full-cad-workspace {position:fixed;inset:0;z-index:1000;background:#11151b;display:flex;flex-direction:column;color:#ecf1f6}
+#full-cad-workspace[hidden] {display:none}
+#full-cad-workspace iframe {flex:1;width:100%;border:0;min-height:0;background:#10131a}
+.cad-topbar {display:flex;align-items:center;gap:16px;padding:10px 14px;border-bottom:1px solid #384350;flex-wrap:wrap}
+.cad-topbar span {flex:1;font-size:12px;color:#bcc7d4}
+.cad-topbar button {min-height:44px}
+.cad-topbar a {color:#bcf477;font-size:12px}
+#full-cad-status {padding:12px;margin:0}
+
+.cad-editor-body {display:flex;flex:1;min-height:0}
+#cad-context {width:300px;flex:0 0 300px;overflow:auto;padding:18px;background:#19212b;border-right:1px solid #384350;font-size:13px}
+#cad-context[hidden] {display:none}
+#cad-context img {width:100%;border-radius:6px;background:#11151c}
+#cad-context button {width:100%;min-height:44px;margin:8px 0}
+#cad-context-transcript {white-space:pre-wrap;line-height:1.6}
+#cad-context-level {width:100%}
+
+.agent-background-editors {position:fixed;left:-20000px;top:0;width:1024px;height:768px;visibility:hidden;pointer-events:none;overflow:hidden}
+#agent-panel {position:fixed;right:12px;top:12px;bottom:12px;width:360px;max-width:95vw;padding:16px;overflow:auto;z-index:1100;background:#18222f;border:1px solid #526575;border-radius:12px;box-shadow:0 15px 70px #0009;color:#eaf0f5;font-size:13px}
+#agent-panel[hidden] {display:none}
+#agent-panel button {min-height:42px;margin:5px 2px}
+#agent-panel p {line-height:1.5}
+#agent-panel select {width:100%;min-height:40px;background:#202d3d;color:white}
+#agent-panel label {display:block;margin:8px 0}
+.agent-vector {display:flex;gap:6px}
+.agent-vector input {width:32%;padding:8px;background:#101923;color:white;border:1px solid #526575;border-radius:5px}
+.agent-panel-head {display:flex;justify-content:space-between;align-items:center}
+#agent-preview canvas {width:100%;height:auto;border-radius:8px;touch-action:none}
+
+/* Keep editor contexts alive offscreen while the user draws in XR. */
+#full-cad-workspace[hidden] {display:flex;inset:0 auto auto -20000px;width:1024px;height:768px;visibility:hidden;pointer-events:none}
+
+.instruction-form {margin:14px 0;padding:12px;border:1px solid #526575;border-radius:8px}
+.instruction-form label {display:block;font-size:13px;margin-bottom:8px}
+.instruction-form textarea {display:block;width:100%;box-sizing:border-box;background:#101923;color:#f1f5fa;font:inherit;font-size:16px;padding:10px;border:1px solid #738397;border-radius:6px;resize:vertical;min-height:88px}
+.instruction-status {font-size:12px;color:#baf477}
+#agent-plan-status {white-space:pre-wrap;font-size:12px}
+
+.surface-tools{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}.surface-tools p{font-size:12px;color:#9eb3c9;margin:0;width:100%}
+
+.magnetism-controls{font-size:12px;padding:8px 0}.magnetism-controls label{display:flex;align-items:center;justify-content:space-between;margin:7px 0}.magnetism-controls input[type=number]{width:75px}#reference-plane-values input{width:120px;margin-left:8px}
+
+.cad-topbar>span{display:none}
+
+#assistant-feedback {position:fixed;left:270px;right:390px;top:85px;z-index:1050;padding:10px 14px;border:1px solid #566c84;border-radius:10px;background:#152331ed;color:#ecf5ff;display:flex;flex-wrap:wrap;gap:8px;font-size:13px;box-shadow:0 5px 20px #0005} #assistant-feedback strong,#assistant-feedback span {width:100%;overflow-wrap:anywhere} #assistant-feedback span {color:#b8cbdc;font-size:12px} #assistant-feedback button {min-height:32px} @media(max-width:1100px){#assistant-feedback{left:12px;right:12px;top:78px;max-width:460px}}
+
+#agent-question{position:fixed;z-index:2200;top:50%;left:50%;transform:translate(-50%,-50%);width:min(620px,calc(100vw - 32px));max-height:85vh;overflow:auto;background:#152331;color:#edf4fa;padding:24px;border:2px solid #bcf477;border-radius:16px;box-shadow:0 15px 70px #000b}#agent-question[hidden]{display:none}#agent-question h2{font-size:22px;margin:12px 0}#agent-question p{line-height:1.5}#agent-question-options{display:grid;gap:8px}#agent-question-options button{text-align:left;white-space:normal;min-height:48px}#agent-answer-form{display:flex;gap:8px}#agent-answer-text{min-width:0;flex:1}
+
+#mic-reconnect{position:fixed;bottom:48px;left:50%;transform:translateX(-50%);z-index:110;background:#bcf477;color:#10151d;padding:14px 24px;font-weight:700;box-shadow:0 4px 22px #0008} #mic-reconnect[hidden]{display:none}
+
+.object-tools{position:absolute;bottom:20px;left:12px;right:12px;z-index:1051;display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:#18212de8;padding:10px;border-radius:8px}.object-tools[hidden]{display:none}.object-tools span{font-size:12px;color:#bcf477;width:100%}
+
+body[data-creation-mode="incremental"] .right-panel {display:none}
+body[data-creation-mode="incremental"] main {grid-template-columns:250px minmax(320px,1fr)}
+#stroke-workflow {padding:12px 0;border-bottom:1px solid #344357} #stroke-workflow label {display:block;margin:8px 0} #stroke-workflow input[type=number] {width:90px} #fit-status {color:#8cbcff;font-size:12px}
+
+.spatial-studio #vr-spatial-workflow{padding:12px 0;border-bottom:1px solid #344357}.spatial-studio #vr-spatial-workflow h2{font-size:17px}.spatial-studio #vr-spatial-workflow label{display:block;margin:10px 0}.spatial-studio #vr-spatial-workflow select{display:block;width:100%;margin-top:5px}.spatial-studio #vr-spatial-workflow input[type=number]{width:70px;float:right}.spatial-studio #vr-spatial-workflow button{width:100%;margin:4px 0}.spatial-studio #vr-spatial-workflow details{margin:10px 0}.spatial-studio #vr-fit-status{color:#8cbcff;font-size:12px;overflow-wrap:anywhere}.spatial-studio .spatial-enable{padding:10px;border:1px solid #779e4d;border-radius:7px;background:#253620;font-weight:700}.spatial-studio #vr-object-parameters{width:100%;font:11px monospace;color:#c8dfff;background:#101923;border:1px solid #40546c;border-radius:5px}.spatial-studio .model-agent-controls{font-size:12px}.spatial-studio #vr-instructions form{display:block}.spatial-studio #vr-instructions input[type=text],.spatial-studio #agent-instruction{width:100%}.spatial-studio #assistant-feedback{top:80px;left:270px;right:30px;max-width:560px;font-size:12px}.spatial-studio #ai-live-log{position:absolute;bottom:205px;right:12px;width:min(420px,calc(100% - 24px));max-height:260px;padding:10px;background:#101923ed;border:1px solid #3b5872;border-radius:8px;z-index:30;font-size:11px}.spatial-studio .ai-log-head{display:flex;justify-content:space-between;gap:8px;align-items:center}.spatial-studio .ai-log-head strong,.spatial-studio #ai-live-state{display:block}.spatial-studio .ai-log-head button{font-size:11px;min-height:28px;padding:4px 8px}.spatial-studio #ai-live-entries{max-height:150px;overflow:auto}.spatial-studio .ai-log-entry{border-top:1px solid #2a3a4c;padding:5px 0}.spatial-studio .ai-log-entry time{color:#8499af;margin-right:7px}.spatial-studio .ai-log-entry pre{white-space:pre-wrap;max-height:130px;overflow:auto;word-break:break-word}.spatial-studio #ai-live-log.collapsed #ai-live-entries,.spatial-studio #ai-live-log.collapsed #ai-live-wait{display:none}.spatial-studio #ai-live-wait{color:#a8bfd8}.spatial-studio #ai-live-state{font-size:10px;color:#bcf477;margin-top:4px}.spatial-studio .ai-log-entry.error{color:#ff9a8b}
+
+#ai-supervision-controls{padding:10px 0;margin:8px 0;border-top:1px solid #344357;border-bottom:1px solid #344357}#ai-supervision-controls label{display:block;font-weight:600;margin-bottom:7px}#ai-supervision-controls select{width:100%;font-size:12px}#ai-supervision-help{font-size:11px;line-height:1.5;color:#a9bdd1;margin:7px 0 0}
+
+/* Keep live status inside the canvas, including compact Quest browser windows. */
+.spatial-studio #ai-live-log {top:12px;bottom:auto;max-height:min(260px,calc(100% - 24px));display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box;overflow-wrap:anywhere}
+.spatial-studio #ai-live-log .ai-log-head {flex-shrink:0}
+.spatial-studio #ai-live-entries {min-height:0;flex:1;overflow:auto}
+.spatial-studio #ai-live-wait {flex-shrink:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+.spatial-studio > header {position:relative;z-index:100}
+
+#live-shape-controls{display:grid;gap:7px;margin-top:12px;border-top:1px solid #456279;padding-top:10px}#live-shape-controls label{display:flex;gap:6px;font-size:12px;flex-wrap:wrap}#live-shape-controls input[type=number],#live-shape-controls select{max-width:100%;background:#112333;color:#e8f0f9;border:1px solid #516f86;border-radius:4px;padding:5px}#live-shape-controls p{font-size:11px;line-height:1.5;color:#bcd2e2;margin:0}#live-shape-controls #live-shape-accept{background:#acd48e;color:#102018;font-weight:bold}#live-shape-toolbar{position:absolute;right:14px;top:246px;z-index:52;width:260px;padding:10px;border:1px solid #9acbca;border-radius:8px;background:#132c3aee;color:#e7f5ff;display:grid;gap:6px;box-shadow:0 5px 20px #0004}#live-shape-toolbar[hidden]{display:none}#live-shape-toolbar strong{font-size:13px}#live-shape-toolbar span{font-size:11px;line-height:1.4}#live-shape-toolbar>div{display:flex;gap:5px}#live-shape-toolbar button{font-size:11px;min-height:30px;padding:5px 7px}#live-shape-toolbar [data-accept]{background:#afd18a;color:#102015;font-weight:bold}
+
+#concept-picker{position:fixed;inset:8% 3%;z-index:2400;overflow:auto;padding:24px;background:#10202ff5;color:#eef5ff;border:2px solid #8cbcff;border-radius:18px;box-shadow:0 20px 80px #000b}#concept-picker[hidden]{display:none}#concept-picker h2{margin:0 0 8px}#concept-picker [data-cards]{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}#concept-picker [data-candidate]{display:flex;flex-direction:column;gap:12px;padding:10px;white-space:normal;border:3px solid #38516b;background:#1c3146;color:#fff}#concept-picker [data-candidate][aria-pressed=true]{border-color:#bcf477;box-shadow:0 0 0 2px #bcf477}#concept-picker img{width:100%;aspect-ratio:1;object-fit:contain;background:#f2f3f4}#concept-picker .concept-loading{display:grid;place-content:center;width:100%;aspect-ratio:1}#concept-picker footer{display:flex;gap:12px;margin:20px 0 12px}#concept-picker [data-confirm]{background:#617d3f}#concept-picker [data-error]{color:#ffbd78}
+
+/* Keep controls quiet and leave the model as the primary focus. */
+:root{font-family:Arial,Helvetica,sans-serif}
+button,input,select,#agent-question,#assistant-feedback,#concept-picker{border-radius:4px}
+.brand,h1,h2,.panel-title{font-family:inherit;letter-spacing:0}
+.primary{background:#b3c8df;border-color:#b3c8df;color:#152131}
+.primary:hover{background:#c8d8e9;border-color:#c8d8e9}
+.workspace{background:#171b21}
+.section-label,.project-name,.canvas-title{letter-spacing:.03em;text-transform:none}
+.left-panel h1{font-size:23px;margin-bottom:8px}
+.controls-help summary{cursor:pointer;font-size:14px;padding:4px 0}
+#assistant-feedback{background:#20262ff5;border-color:#46505e;box-shadow:none;padding:10px 12px}
+#assistant-feedback #assistant-detail:empty{display:none}
+#agent-question{background:#20262f;border:1px solid #596574;box-shadow:0 10px 35px #0005;padding:20px}
+#agent-question>strong{font-size:12px;color:#b8c2cf;font-weight:400}
+#concept-picker{background:#1b2027;border:1px solid #586473;box-shadow:0 12px 40px #0005;inset:8% 6%;padding:20px}
+#concept-picker h2{font-size:20px;font-weight:500}
+#concept-picker [data-prompt]{color:#b8c2cf;max-width:85ch;font-size:13px}
+#concept-picker [data-candidate]{border:1px solid #495462;background:#242b34;border-radius:3px;gap:8px;padding:8px;text-align:left}
+#concept-picker [data-candidate][aria-pressed=true]{border-color:#a9c5e4;box-shadow:0 0 0 1px #a9c5e4}
+#concept-picker [data-confirm]{background:#345a80;border-color:#547da4}
+#concept-picker [data-cards]{gap:12px}
+#concept-picker footer{padding:0;background:none;border:0;height:auto;justify-content:flex-start}
+#concept-picker small{color:#aab4c1;font-size:12px}
+#concept-picker [data-error]:empty{display:none}
+.model-agent-controls>strong{font-size:14px;font-weight:500}
+.model-agent-controls>p{font-size:12px;color:#b8c2cf}
+
+.spatial-studio .spatial-enable{background:transparent;border-color:#46505e;font-weight:500}.fitting-options{border-top:1px solid #38414e;padding-top:10px}.spatial-studio #ai-live-log{background:#20262fed;border-radius:4px;border-color:#46505e;box-shadow:none}.tag{display:none}
+
+#ai-live-log[hidden]{display:none}
+.spatial-studio #assistant-feedback{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;max-width:560px;align-items:center}
+.spatial-studio #assistant-feedback strong{grid-column:1;width:auto;font-size:12px;font-weight:500}
+.spatial-studio #assistant-feedback #assistant-detail{display:none}
+.spatial-studio #assistant-feedback button{width:auto;min-height:28px;padding:4px 8px;font-size:11px}
+#mic-reconnect{position:static;transform:none;z-index:auto;background:#303e4e;border:1px solid #586b81;color:#e4eaf1;padding:8px 13px;font-weight:400;box-shadow:none}
+#mic[hidden],#mic-reconnect[hidden]{display:none}
+.sketch-options>summary{cursor:pointer;padding:3px 0}
+#empty-state .empty-symbol{display:none}
+
+#workspace-modes{display:inline-flex;gap:2px;padding:3px;border:1px solid #46505e;border-radius:5px;margin-right:10px}#workspace-modes button{font:inherit;font-size:12px;min-height:29px;padding:4px 10px;background:transparent;border:0;color:#b5c3d1}#workspace-modes button[aria-pressed="true"]{background:#354454;color:#eef5fc}#workspace-modes button:disabled{opacity:.5}

@@ -1,0 +1,21 @@
+import * as T from 'three';
+// One presentation layer composes result focus with transparent sketch context.
+export function initDesktopAppearance(studio,store){
+ const originals=new WeakMap(),grey=new T.Color(0x75808d);let sketchEditing=false,neutralDepth=0,focus=store.session.desktopResultFocus||null;
+ const card=document.createElement('div');card.id='cad-result-focus';card.innerHTML='<span>Latest AI result highlighted</span><button id="cad-show-all">Show all geometry</button>';document.querySelector('#ai-run').before(card);
+ const baseline=m=>{let s=originals.get(m);if(!s){s={color:m.userData?.cadBodyColor?new T.Color(m.userData.cadBodyColor):m.color?.clone(),opacity:m.opacity,transparent:m.transparent,depthWrite:m.depthWrite};originals.set(m,s);}return s;};
+ function style(object,{muted=false,ghost=false,plane=false,preserveBodyColor=false}={}){object.traverse(o=>{for(const m of Array.isArray(o.material)?o.material:o.material?[o.material]:[]){const saved=baseline(m);if(m.color&&saved.color)m.color.copy(muted?(preserveBodyColor?saved.color.clone().lerp(grey,.35):grey):saved.color);if(plane)continue;const factor=muted?(preserveBodyColor?.8:.3):ghost?0.38:1,transparent=saved.transparent||factor<1;if(m.transparent!==transparent){m.transparent=transparent;m.needsUpdate=true;}m.opacity=saved.opacity*factor;m.depthWrite=factor<1?false:saved.depthWrite;}});}
+ function refresh(){const active=!!focus&&!neutralDepth,figureIds=new Set(active&&!focus.modelIds.length?focus.figureIds:[]),modelIds=new Set(active?focus.modelIds:[]),oldStrokes=new Set(active?focus.contextStrokeIds:[]),selected=studio.desktopDrawing.selectedId;
+  for(const line of studio.scene.getObjectByName('Editable desktop drawing figures')?.children||[])style(line,{muted:active&&!figureIds.has(line.userData.figureId)&&line.userData.figureId!==selected});
+  for(const [id,mesh]of studio.strokeMeshes)style(mesh,{muted:active&&oldStrokes.has(id)});
+  for(const line of studio.scene.getObjectByName('Local fitted stroke references')?.children||[])style(line,{muted:active&&oldStrokes.has(line.userData.strokeId)});
+  for(const model of studio.surfaceModels?.()||[]){const focused=active&&modelIds.has(model.id);style(model.mesh,{preserveBodyColor:true,muted:active&&!focused,ghost:!neutralDepth&&sketchEditing&&!focused});}
+  for(const item of studio.scene.getObjectByName('Clickable reference planes')?.children||[])style(item,{muted:active,plane:true});
+  for(const label of document.querySelectorAll('#cad-dimension-labels [data-figure-id],#cad-feature-tree [data-figure-id]'))label.classList.toggle('cad-muted',active&&!figureIds.has(label.dataset.figureId)&&label.dataset.figureId!==selected);
+  const brightSketches=new Set(studio.desktopDrawing.summary().filter(f=>figureIds.has(f.id)||f.id===selected).map(f=>f.desktopSketchId));for(const row of document.querySelectorAll('#cad-sketch-list [data-sketch-id]'))row.classList.toggle('cad-muted',active&&!brightSketches.has(row.dataset.sketchId));
+  card.hidden=!focus;document.body.toggleAttribute('data-ai-result-focus',!!focus);
+ }
+ function focusResult(review,runId=crypto.randomUUID()){if(!review.figureIds?.length&&!review.modelIds?.length)return;const prior=focus?.runId===runId?focus:null;focus={runId,figureIds:[...new Set([...(prior?.figureIds||[]),...(review.figureIds||[])])],modelIds:[...new Set([...(prior?.modelIds||[]),...(review.modelIds||[])])],contextStrokeIds:store.session.strokes.map(s=>s.id)};store.session.desktopResultFocus=focus;studio.desktopDrawing.select(focus.modelIds.length?null:review.figureIds?.at(-1)||focus.figureIds.at(-1),false);refresh();}
+ function clear(){focus=null;delete store.session.desktopResultFocus;refresh();void store.flush();}
+ const api={refresh,focus:focusResult,clear,setSketchEditing(value){sketchEditing=!!value;refresh();},get focused(){return !!focus;},async neutral(fn){neutralDepth++;refresh();try{return await fn();}finally{neutralDepth--;refresh();}}};studio.desktopAppearance=api;card.querySelector('button').onclick=clear;const timer=setInterval(refresh,150);window.addEventListener('pagehide',()=>{clearInterval(timer);focus=null;sketchEditing=false;refresh();},{once:true});refresh();return api;
+}

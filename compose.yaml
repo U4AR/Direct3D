@@ -1,0 +1,84 @@
+name: draw3d
+x-worker: &worker
+  restart: unless-stopped
+  init: true
+  read_only: true
+  tmpfs: ["/tmp:size=512m,mode=1777"]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  cpus: 2
+  mem_limit: 3g
+  networks: [modeling]
+services:
+  app:
+    <<: *worker
+    build: {context: ., dockerfile: deploy/Dockerfile.app}
+    networks: [modeling, web]
+    ports: ["${DRAW3D_BIND:-127.0.0.1}:${DRAW3D_PORT:-18888}:8788"]
+    environment:
+      GEMINI_API_KEY_FILE: /run/secrets/gemini_api_key
+      MODELING_SERVICE_TOKEN_FILE: /run/secrets/modeling_token
+      GEMINI_AGENT_MODEL: ${GEMINI_AGENT_MODEL:-gemini-3.8-flash}
+      DRAW3D_AGENT_PROVIDER: gemini
+      BLENDER_SERVICE_URL: http://blender:8790
+      FREECAD_SERVICE_URL: http://freecad:8790
+      DRAW3D_AGENT_ORIGINS: ${DRAW3D_AGENT_ORIGINS:-http://localhost:18888,http://127.0.0.1:18888,http://localhost:5173}
+    secrets: [gemini_api_key, modeling_token]
+    volumes: [app-data:/data]
+    depends_on:
+      blender: {condition: service_healthy}
+      freecad: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8788/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+  blender:
+    <<: *worker
+    build: {context: ., dockerfile: deploy/Dockerfile.blender}
+    environment: {MODELING_SERVICE_TOKEN_FILE: /run/secrets/modeling_token}
+    secrets: [modeling_token]
+    volumes: [blender-data:/data]
+    healthcheck:
+      test: [CMD, node, --import, ./scripts/server-secrets.mjs, -e, "fetch('http://127.0.0.1:8790/api/blender/health',{headers:{'X-Modeling-Token':process.env.MODELING_SERVICE_TOKEN}}).then(async r=>{if(!(await r.json()).ready)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 25s
+      start_period: 40s
+      retries: 3
+  freecad:
+    <<: *worker
+    build: {context: ., dockerfile: deploy/Dockerfile.freecad}
+    environment: {MODELING_SERVICE_TOKEN_FILE: /run/secrets/modeling_token}
+    secrets: [modeling_token]
+    volumes: [freecad-data:/data]
+    healthcheck:
+      test: [CMD, node, --import, ./scripts/server-secrets.mjs, -e, "fetch('http://127.0.0.1:8790/api/freecad/health',{headers:{'X-Modeling-Token':process.env.MODELING_SERVICE_TOKEN}}).then(async r=>{if(!(await r.json()).ready)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 25s
+      start_period: 40s
+      retries: 3
+  https:
+    image: caddy:2.10.2-alpine
+    profiles: [https]
+    ports: ["80:80", "443:443"]
+    restart: unless-stopped
+    environment:
+      DRAW3D_DOMAIN: ${DRAW3D_DOMAIN:-localhost}
+      DRAW3D_AUTH_HASH: ${DRAW3D_AUTH_HASH:-}
+    volumes: ["./deploy/Caddyfile:/etc/caddy/Caddyfile:ro", "caddy-data:/data", "caddy-config:/config"]
+    networks: [modeling, web]
+    depends_on: [app]
+secrets:
+  gemini_api_key: {file: .secrets/gemini_api_key}
+  modeling_token: {file: .secrets/modeling_token}
+volumes:
+  app-data:
+  blender-data:
+  freecad-data:
+  caddy-data:
+  caddy-config:
+networks:
+  modeling:
+    internal: true
+  web:

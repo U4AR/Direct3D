@@ -1,0 +1,37 @@
+// AI geometry is a working draft. Persistence keeps the committed design separate
+// until the user accepts the entire completed proposal, including all model moves.
+const copy=x=>structuredClone(x);
+const recordingKeys=['partConversation','transcripts','aiActivity','lastAIRun','aiDirectCheckpoint','aiDirectGoal','aiPendingQuestion','pendingQuestionAnswer','instructionDraft','elapsedMs','sequence','updated'];
+export function createDraftSession(store,{capture,restore,changed=()=>{},decision=async()=>{}}){
+ let active=null,busy=false,recovering=!!store.session.aiPendingDraft;
+ const saved=store.session.aiPendingDraft;delete store.session.aiPendingDraft;
+ function clean(session){const next=copy(session);delete next.aiPendingDraft;return next;}
+ function persisted(){if(!active)return recovering?{...store.session,aiPendingDraft:saved}:store.session;const out=copy(active.base);for(const key of recordingKeys){if(key in store.session)out[key]=copy(store.session[key]);else delete out[key];}out.aiPendingDraft={id:active.id,dirty:active.dirty,runIds:[...active.runIds],baseSceneAsset:active.baseSceneAsset,inputStrokes:[...active.inputs.values()].map(copy),session:clean(store.session),document:store.draftSceneDocument?.()??null};return out;}
+ store.snapshotForPersistence=persisted;
+ store.assetPathForWrite=name=>active?'ai-drafts/'+active.id+'/'+name:name;
+ const log=store.log.bind(store);store.log=(type,data)=>{log(type,data);if(active&&type==='stroke.end'){const s=store.session.strokes.find(s=>s.id===data.id);if(s?.points.length>=2)active.inputs.set(s.id,copy(s));}};
+ async function begin(runId,options){if(active){active.runIds.add(runId);changed();return;}const scene=await capture(options),id=crypto.randomUUID(),base=clean(store.session),baseSceneAsset='ai-drafts/'+id+'/base-scene.json';await store.asset(baseSceneAsset,new Blob([JSON.stringify(scene)],{type:'application/json'}),{kind:'ai-draft-base'});active={id,dirty:false,base,baseSceneAsset,runIds:new Set([runId]),inputs:new Map(base.strokes.map(s=>[s.id,copy(s)]))};store.log('ai.preview.started',{id,runId});changed();await store.flush();}
+ async function accept(){if(!active||busy||!active.dirty)return false;const current=active;active=null;delete store.session.aiPendingDraft;store.session.acceptedAIRuns??=[];for(const id of current.runIds)if(!store.session.acceptedAIRuns.includes(id))store.session.acceptedAIRuns.push(id);try{await store.flush();}catch(error){active=current;store.session.acceptedAIRuns=store.session.acceptedAIRuns.filter(id=>!current.runIds.has(id));throw error;}store.log('ai.preview.accepted',{id:current.id,runIds:[...current.runIds]});changed();await decision([...current.runIds],true);return true;}
+ async function discard(){if(!active||busy)return false;const current=active,asset=await store.get('assets',[store.session.id,current.baseSceneAsset]);if(!asset)throw Error('The saved design snapshot is missing; keep the preview and export this session.');const base=copy(current.base);base.transcripts=copy(store.session.transcripts);base.aiActivity=copy(store.session.aiActivity);for(const key of ['decisionInstruction','decisionCases','decisionDrawingView'])if(key in store.session)base[key]=copy(store.session[key]);base.strokes=[...current.inputs.values()].map(copy);await restore(base,JSON.parse(await asset.blob.text()));active=null;recovering=false;delete store.session.aiPendingDraft;store.log('ai.preview.discarded',{id:current.id,runIds:[...current.runIds]});await store.flush();changed();await decision([...current.runIds],false);return true;}
+ async function recover(){if(!saved)return;const base=clean(store.session),asset=await store.get('assets',[store.session.id,saved.baseSceneAsset]);if(!asset)throw Error('The preview base is missing; export before editing.');const draft=copy(saved.session),modelAsset=draft.sharedModels?await store.get('assets',[store.session.id,draft.sharedModels]):null;active={id:saved.id,dirty:saved.dirty!==false,base,baseSceneAsset:saved.baseSceneAsset,runIds:new Set(saved.runIds),inputs:new Map((saved.inputStrokes||base.strokes).map(s=>[s.id,copy(s)]))};await restore(draft,{document:saved.document,models:modelAsset?JSON.parse(await modelAsset.blob.text()):JSON.parse(await asset.blob.text()).models});recovering=false;store.log('ai.preview.restored',{id:active.id});changed();}
+ async function checkpoint(){
+  if(!active||!active.dirty)return null;
+  return {draftId:active.id,runIds:new Set(active.runIds),session:clean(store.session),scene:await capture()};
+ }
+ async function restoreCheckpoint(point){
+  if(!point||point.draftId!==active?.id)throw Error('The working preview has changed');
+  const snapshot=point.session,known=new Set(snapshot.strokes.map(s=>s.id));
+  for(const stroke of active.inputs.values())if(!known.has(stroke.id))snapshot.strokes.push(copy(stroke));
+  for(const key of [...recordingKeys,'decisionInstruction','decisionCases','decisionDrawingView'])if(key in store.session)snapshot[key]=copy(store.session[key]);
+  await restore(snapshot,point.scene);active.runIds=point.runIds;await store.flush();changed();
+ }
+ return {begin,accept,discard,recover,persisted,checkpoint,restoreCheckpoint,markApplied(){if(active){active.dirty=true;changed();}},get recovering(){return recovering;},get hasChanges(){return !!active?.dirty;},setBusy(value){busy=!!value;changed();},get active(){return !!active;},get busy(){return busy;},get runIds(){return active?[...active.runIds]:[];}};
+}
+export function initDesktopDraftReview({studio,store,request,record=()=>{}}){
+ const bar=document.createElement('aside');bar.id='desktop-ai-preview';bar.hidden=true;bar.setAttribute('aria-label','AI preview');bar.innerHTML='<span>Preview</span><button id="desktop-preview-accept">Accept</button><button id="desktop-preview-discard" title="Discard preview" aria-label="Discard preview">×</button>';studio.container.append(bar);
+ const accept=bar.querySelector('#desktop-preview-accept'),discard=bar.querySelector('#desktop-preview-discard');let error='';
+ const draft=createDraftSession(store,{capture:options=>studio.desktopDraftState.capture(options),restore:(session,scene)=>studio.desktopDraftState.restore(session,scene),changed:()=>{bar.hidden=!draft.active;accept.disabled=draft.busy||draft.recovering||!draft.hasChanges;discard.disabled=draft.busy;bar.querySelector('span').textContent=error|| (draft.busy?'Preview · working…':'Preview');document.body.classList.toggle('has-ai-preview',draft.active);},decision:async(runIds,accepted)=>{for(const runId of runIds)try{if(runId.startsWith('local-decision-')){store.log('decision.preview.review',{runId,accepted});continue;}await request('desktop-review',{runId,accepted,final:runId===runIds.at(-1),relatedRunIds:runIds});}catch(e){store.log('ai.preview.review-pending',{runId,accepted,error:e.message});record('Preview decision saved locally; server review will need syncing','connection');}}});
+ accept.onclick=()=>draft.accept().catch(e=>{error=e.message;draft.setBusy(false);});discard.onclick=()=>draft.discard().catch(e=>{error=e.message;draft.setBusy(false);});
+ studio.aiDraftReview=draft;
+ window.addEventListener('draw3d-ready',async()=>{try{await studio.modelsReady;while(document.body.dataset.desktopReady!=='true')await new Promise(r=>setTimeout(r,50));await draft.recover();}catch(e){record('Preview recovery needs attention: '+e.message,'error');}},{once:true});return draft;
+}
