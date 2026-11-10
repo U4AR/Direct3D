@@ -37,7 +37,8 @@ test('tutorial assets and first-visit claims require a session and stay scoped t
   assert.deepEqual(claimed,[userKey('111111'),userKey('111111'),userKey('222222')]);assert.equal(lookups,0);
   for(const resource of ['onboarding.js','onboarding.css','assets/model.webp','assets/sketch.webp','assets/edit.webp','assets/vr.webp']){const r=await fetch(base+'/learn/'+resource,{headers:{Cookie:session('111111')}});assert.equal(r.status,200);assert.ok((await r.arrayBuffer()).byteLength>1000);}
   assert.equal((await fetch(base+'/learn/assets/README.md',{headers:{Cookie:session('111111')}})).status,404);
-  const html=await(await fetch(base+'/desktop.html',{headers:{Cookie:session('111111')}})).text();assert.match(html,/src="\/learn\/onboarding.js"/);assert.ok(html.includes(userKey('111111')));
+  const landing=await fetch(base+'/desktop.html',{headers:{Cookie:session('111111')},redirect:'manual'});assert.equal(landing.headers.get('location'),'/desktop.html?experiment=decision');
+  const html=await(await fetch(base+'/desktop.html?experiment=decision',{headers:{Cookie:session('111111')}})).text();assert.match(html,/src="\/learn\/onboarding.js"/);assert.ok(html.includes(userKey('111111')));
   const embedded=await(await fetch(base+'/cad/index.html',{headers:{Cookie:session('111111')}})).text();assert.doesNotMatch(embedded,/onboarding.js/);
  }finally{await Promise.all([new Promise(r=>gateway.close(r)),new Promise(r=>worker.close(r))]);}
 });

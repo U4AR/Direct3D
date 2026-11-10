@@ -53,9 +53,9 @@ const server=http.createServer(async(req,res)=>{
    send(res,404,{error:'Tutorial resource not found'});return;
   }
   if(url.pathname==='/auth/workspace'&&req.method==='GET'){const status=await getWorkspace(user,origin);send(res,200,{ready:status.ready});return;}
+  if(req.method==='GET'&&(url.pathname==='/'||url.pathname==='/desktop.html'&&!url.search)){res.writeHead(302,{Location:'/desktop.html?experiment=decision','Cache-Control':'no-store'});res.end();return;}
   const target=await getWorkspace(user,origin);
   if(!target.ready){if(req.method==='GET'&&!url.pathname.startsWith('/api/')){res.writeHead(302,{Location:'/login','Cache-Control':'no-store'});res.end();}else send(res,503,{error:'Your private workspace is starting. Please wait a moment.'});return;}
-  if(url.pathname==='/'&&req.method==='GET'){res.writeHead(302,{Location:'/desktop.html','Cache-Control':'no-store'});res.end();return;}
   const headers={...req.headers};for(const name of ['host','cookie','connection','content-length','x-serverless-authorization','x-goog-iap-jwt-assertion','x-draw3d-user'])delete headers[name];
   headers['x-serverless-authorization']=await identityForWorker(target.url);headers.origin=origin;
   const upstream=await fetch(target.url+url.pathname+url.search,{method:req.method,headers,redirect:'manual',...(!['GET','HEAD'].includes(req.method)?{body:req,duplex:'half'}:{})});
