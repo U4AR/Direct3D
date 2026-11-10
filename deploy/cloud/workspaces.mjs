@@ -18,4 +18,9 @@ export async function workspace(key,origin){
  return {ready:false};
 }
 const clients=new Map();
+// An immutable per-account marker needs only Object Creator, not bucket reads.
+export async function claimOnboarding(key){
+ if(!/^[a-f0-9]{32}$/.test(key))throw Error('Invalid private workspace key');
+ try{await call(`https://storage.googleapis.com/upload/storage/v1/b/${process.env.WORKSPACE_BUCKET}/o?uploadType=media&ifGenerationMatch=0&name=${encodeURIComponent('onboarding/v1/'+key+'.json')}`,'POST',{version:1,seenAt:new Date().toISOString()});return true;}catch(error){if(error.status===412)return false;throw error;}
+}
 export async function workerIdentity(url){let client=clients.get(url);if(!client){client=await auth.getIdTokenClient(url);clients.set(url,client);}const headers=await client.getRequestHeaders();return headers.get('authorization');}

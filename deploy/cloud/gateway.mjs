@@ -1,9 +1,9 @@
 import http from 'node:http';import {readFile} from 'node:fs/promises';import {randomBytes} from 'node:crypto';import {Readable} from 'node:stream';
 import {OAuth2Client} from 'google-auth-library';
 import {seal,unseal,verifyPasscode,cookies,sessionIdentity,sameOrigin} from './auth.mjs';
-import {workspace,workerIdentity} from './workspaces.mjs';
+import {workspace,workerIdentity,claimOnboarding} from './workspaces.mjs';
 import {fileURLToPath} from 'node:url';import path from 'node:path';
-export function createGateway({verifyGoogle,lookupWorkspace=workspace,identityForWorker=workerIdentity}={}){
+export function createGateway({verifyGoogle,lookupWorkspace=workspace,identityForWorker=workerIdentity,claimTutorial=claimOnboarding}={}){
 const key=process.env.SESSION_SIGNING_KEY,passHash=process.env.PASSCODE_HASH,clientId=process.env.GOOGLE_CLIENT_ID||'',oauth=new OAuth2Client(clientId);
 if(!key||key.length<32||!passHash)throw Error('Authentication secrets must be configured');
 const cookieName='__Host-draw3d',nonceName='__Host-draw3d_nonce',inviteName='__Host-draw3d_invite';
@@ -45,6 +45,13 @@ const server=http.createServer(async(req,res)=>{
   if(url.pathname==='/auth/account.js'&&req.method==='GET'){res.writeHead(200,{'Content-Type':'text/javascript','Cache-Control':'no-store'});res.end(`addEventListener('DOMContentLoaded',()=>{const b=document.createElement('button');b.textContent='Sign out';b.title='Sign out of your private workspace';b.style.cssText='position:fixed;right:12px;bottom:12px;z-index:99999;border:1px solid #526b77;background:#17252e;color:#e9f1f4;border-radius:8px;padding:8px 12px;cursor:pointer';b.onclick=async()=>{await fetch('/auth/logout',{method:'POST'});location.replace('/login')};document.body.append(b)});`);return;}
   if(url.pathname==='/login'||!user&&req.method==='GET'&&(url.pathname==='/'||url.pathname.endsWith('.html'))){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});res.end(await readFile(new URL('./login.html',import.meta.url)));return;}
   if(!user){send(res,401,{error:'Google sign-in and invitation passcode required'});return;}
+  if(url.pathname.startsWith('/learn/')){
+   if(url.pathname==='/learn/visit'&&req.method==='POST'){send(res,200,{firstVisit:await claimTutorial(user.key),version:1});return;}
+   const assets=new Map([['/learn/onboarding.js',['onboarding.js','text/javascript; charset=utf-8']],['/learn/onboarding.css',['onboarding.css','text/css; charset=utf-8']],...['sketch','model','edit','vr'].map(name=>['/learn/assets/'+name+'.webp',['tutorial-assets/'+name+'.webp','image/webp']])]);
+   const asset=assets.get(url.pathname);
+   if(asset&&req.method==='GET'){res.writeHead(200,{'Content-Type':asset[1],'Cache-Control':'private, max-age=300','X-Content-Type-Options':'nosniff'});res.end(await readFile(new URL('./'+asset[0],import.meta.url)));return;}
+   send(res,404,{error:'Tutorial resource not found'});return;
+  }
   if(url.pathname==='/auth/workspace'&&req.method==='GET'){const status=await getWorkspace(user,origin);send(res,200,{ready:status.ready});return;}
   const target=await getWorkspace(user,origin);
   if(!target.ready){if(req.method==='GET'&&!url.pathname.startsWith('/api/')){res.writeHead(302,{Location:'/login','Cache-Control':'no-store'});res.end();}else send(res,503,{error:'Your private workspace is starting. Please wait a moment.'});return;}
@@ -54,7 +61,7 @@ const server=http.createServer(async(req,res)=>{
   const upstream=await fetch(target.url+url.pathname+url.search,{method:req.method,headers,redirect:'manual',...(!['GET','HEAD'].includes(req.method)?{body:req,duplex:'half'}:{})});
   const responseHeaders=Object.fromEntries(upstream.headers.entries());for(const name of ['connection','content-encoding','content-length','set-cookie'])delete responseHeaders[name];responseHeaders['cache-control']='private, no-store';
   if(upstream.headers.get('content-type')?.includes('text/html')){
-   const html=await upstream.text();const bootstrap=`<script>window.DRAW3D_USER_NAMESPACE=${JSON.stringify(user.key)};</script><script src="/auth/account.js" defer></script>`;
+   const html=await upstream.text();const tutorial=['/desktop.html','/index.html'].includes(url.pathname)?'<script src="/learn/onboarding.js" defer></script>':'';const bootstrap=`<script>window.DRAW3D_USER_NAMESPACE=${JSON.stringify(user.key)};</script><script src="/auth/account.js" defer></script>${tutorial}`;
    res.writeHead(upstream.status,responseHeaders);res.end(html.replace('</head>',bootstrap+'</head>'));return;
   }
   res.writeHead(upstream.status,responseHeaders);if(upstream.body)Readable.fromWeb(upstream.body).pipe(res);else res.end();
