@@ -6,9 +6,13 @@ test('gateway enforces both factors, refuses cross-origin writes, and routes eac
  const gateway=createGateway({verifyGoogle:async credential=>JSON.parse(credential),lookupWorkspace:async key=>{lookups.push(key);return {ready:true,url:'http://127.0.0.1:'+worker.address().port};},identityForWorker:async()=> 'Bearer server-identity'});gateway.listen(0,'127.0.0.1');await once(gateway,'listening');const base='http://127.0.0.1:'+gateway.address().port;
  try{
   assert.equal((await fetch(base+'/api/freecad/export/another-user/step')).status,401);assert.equal(lookups.length,0);
-  const challenge=await fetch(base+'/auth/nonce'),{nonce}=await challenge.json(),cookie=challenge.headers.get('set-cookie').split(';')[0];
+  const checkCode=(passcode,origin='https://test.run.app')=>fetch(base+'/auth/passcode',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({passcode})});
+  assert.equal((await checkCode('7351910285')).status,401);
+  assert.equal((await checkCode('7351910284','https://evil.example')).status,403);
+  const challenge=await checkCode('7351910284'),{nonce}=await challenge.json(),cookie=challenge.headers.getSetCookie().map(c=>c.split(';')[0]).join('; ');
+  assert.equal(challenge.status,200);assert.match(cookie,/__Host-draw3d_invite=/);
   const claims={sub:'123456789',email:'one@gmail.com',email_verified:true,nonce};const login=(input,origin='https://test.run.app')=>fetch(base+'/auth/login',{method:'POST',headers:{Origin:origin,Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify(input)});
-  assert.equal((await login({credential:JSON.stringify(claims),passcode:'7351910285'})).status,401);
+  assert.equal((await fetch(base+'/auth/login',{method:'POST',headers:{Origin:'https://test.run.app','Content-Type':'application/json'},body:JSON.stringify({credential:JSON.stringify(claims)})})).status,401);
   assert.equal((await login({credential:JSON.stringify({...claims,nonce:'wrong'}),passcode:'7351910284'})).status,401);
   assert.equal((await login({credential:JSON.stringify(claims),passcode:'7351910284'},'https://evil.example')).status,403);
   const accepted=await login({credential:JSON.stringify(claims),passcode:'7351910284'});assert.equal(accepted.status,200);assert.match(accepted.headers.get('set-cookie'),/HttpOnly; Secure; SameSite=Lax/);const sessionCookie=accepted.headers.get('set-cookie').split(';')[0];

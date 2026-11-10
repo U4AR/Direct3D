@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';import path from 'node:path';
 export function createGateway({verifyGoogle,lookupWorkspace=workspace,identityForWorker=workerIdentity}={}){
 const key=process.env.SESSION_SIGNING_KEY,passHash=process.env.PASSCODE_HASH,clientId=process.env.GOOGLE_CLIENT_ID||'',oauth=new OAuth2Client(clientId);
 if(!key||key.length<32||!passHash)throw Error('Authentication secrets must be configured');
-const cookieName='__Host-draw3d',nonceName='__Host-draw3d_nonce';
+const cookieName='__Host-draw3d',nonceName='__Host-draw3d_nonce',inviteName='__Host-draw3d_invite';
 const attempts=new Map(),routes=new Map();
 const send=(res,status,data,headers={})=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers});res.end(JSON.stringify(data));};
 const cookie=(name,value,seconds)=>`${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${seconds}`;
@@ -21,17 +21,22 @@ const server=http.createServer(async(req,res)=>{
   if(url.pathname==='/_health'){send(res,200,{ready:true,service:'Draw3D access gateway'});return;}
   if(!['GET','HEAD','OPTIONS'].includes(req.method)&&!sameOrigin(req,origin)){send(res,403,{error:'Request origin not allowed'});return;}
   if(url.pathname==='/auth/config'&&req.method==='GET'){send(res,200,{clientId});return;}
-  if(url.pathname==='/auth/nonce'&&req.method==='GET'){const nonce=randomBytes(24).toString('hex');send(res,200,{nonce},{'Set-Cookie':cookie(nonceName,seal({nonce,exp:Date.now()+600000},key),600)});return;}
+  if(url.pathname==='/auth/passcode'&&req.method==='POST'){
+   if(limited(req)){send(res,429,{error:'Too many passcode attempts. Please wait 15 minutes.'});return;}
+   const input=await body(req);if(!verifyPasscode(input.passcode,passHash)){send(res,401,{error:'That invitation passcode was not accepted. Please check the number.'});return;}
+   const nonce=randomBytes(24).toString('hex'),proof=seal({nonce,exp:Date.now()+600000},key);
+   send(res,200,{accepted:true,nonce},{'Set-Cookie':[cookie(nonceName,proof,600),cookie(inviteName,proof,600)]});return;
+  }
   if(url.pathname==='/auth/login'&&req.method==='POST'){
    if(!clientId){send(res,503,{error:'Google sign-in is being configured'});return;}
    if(limited(req)){send(res,429,{error:'Too many sign-in attempts. Please wait 15 minutes.'});return;}
-   const input=await body(req),challenge=unseal(jar[nonceName],key);
-   if(!challenge||!verifyPasscode(input.passcode,passHash)){send(res,401,{error:'Sign-in or invitation passcode was not accepted.'});return;}
+   const input=await body(req),challenge=unseal(jar[nonceName],key),invitation=unseal(jar[inviteName],key);
+   if(!challenge||!invitation||invitation.nonce!==challenge.nonce){send(res,401,{error:'Your sign-in step expired. Refresh and enter the passcode again.'});return;}
    let claims;try{claims=verifyGoogle?await verifyGoogle(input.credential):(await oauth.verifyIdToken({idToken:input.credential,audience:clientId})).getPayload();}catch{send(res,401,{error:'Google sign-in could not be verified. Please refresh and try again.'});return;}
    if(!claims.email_verified||!claims.sub||claims.nonce!==challenge.nonce){send(res,401,{error:'Google sign-in could not be verified. Please refresh and try again.'});return;}
    const session={sub:claims.sub,email:claims.email,exp:Date.now()+12*3600000};
    if(!sessionIdentity(session)){send(res,401,{error:'Invalid Google account'});return;}
-   send(res,200,{signedIn:true},{'Set-Cookie':[cookie(cookieName,seal(session,key),43200),cookie(nonceName,'',0)]});return;
+   send(res,200,{signedIn:true},{'Set-Cookie':[cookie(cookieName,seal(session,key),43200),cookie(nonceName,'',0),cookie(inviteName,'',0)]});return;
   }
   const user=sessionIdentity(unseal(jar[cookieName],key));
   if(url.pathname==='/auth/me'){send(res,user?200:401,user?{email:user.email}:{error:'Sign-in required'});return;}
