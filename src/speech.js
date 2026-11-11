@@ -2,6 +2,7 @@ import {savedMicrophoneInput,saveMicrophoneInput} from './microphone-input.js';
 import { encodeWav } from "./audio.js";
 
 import { createLevelVAD } from "./level-vad.js";
+import {startVoiceDetector} from './voice-detector.js';
 
 // ONNX caches an initialization failure for the lifetime of the page.
 let neuralVADUnavailable=false;
@@ -49,6 +50,7 @@ export class SpeechCapture {
   }
   async start({audioContext} = {}) {
     if (this.active || this.starting) return;
+    this.paused=false;
     if (!navigator.mediaDevices?.getUserMedia)
       throw new Error("Microphone needs HTTPS or localhost.");
     this.starting=true;
@@ -70,6 +72,7 @@ export class SpeechCapture {
         },
       });
       this.retainedStream=null;
+      this.onDiagnostics({phase:'captured',status:'Microphone access granted · preparing voice detection…',level:0,probability:0,speaking:false});
       this.inputLabel=this.stream.getAudioTracks()[0]?.label||"system default";
       const captureStream = this.stream;
       for(const track of this.stream.getAudioTracks()) {
@@ -158,22 +161,9 @@ export class SpeechCapture {
         },
       };
       if(!neuralVADUnavailable){
-        try{
-          const {createMicVAD}=await import("./vad.js");
-          this.vad=await createMicVAD(vadOptions);
-          await this.vad.start();
-        }catch(error){
-          const reason=String(error?.message??error);
-          if(!/out of memory|no available backend found|initWasm\(\).*failed|WebAssembly.Memory.*allocat/i.test(reason))throw error;
-          neuralVADUnavailable=true;
-          this.store.log("microphone.vad-unavailable",{detector,reason});
-          if(this.vad){
-            try{await this.vad.destroy();}catch(cleanup){this.store.log("microphone.cleanup-error",{action:"release neural detector",message:cleanup.message});}
-            this.vad=null;
-          }
-        }
-      }
-      if(neuralVADUnavailable){
+        const selected=await startVoiceDetector({loadNeural:async()=>{const {createMicVAD}=await import('./vad.js');return createMicVAD(vadOptions);},makeFallback:()=>createLevelVAD(vadOptions),onFallback:error=>{neuralVADUnavailable=true;this.store.log('microphone.vad-unavailable',{detector,reason:String(error?.message??error)});this.onDiagnostics({phase:'captured',status:'Microphone allowed · starting lightweight voice detection…',level:0});}});
+        this.vad=selected.vad;detector=selected.detector;
+      }else{
         detector='audio-level';
         this.vad=createLevelVAD(vadOptions);
         await this.vad.start();
@@ -198,6 +188,7 @@ export class SpeechCapture {
         directModelAudio: true,
       });
       this.listeningStatus();
+      this.onDiagnostics({phase:'listening',status:'Listening · '+this.inputLabel,level:0,probability:0,speaking:false,detector});
     } catch (error) {
       await this.stop({preserveStream:/fetch|dynamically imported|network/i.test(error.message)});
       if(/fetch|dynamically imported|network/i.test(error.message)) {
@@ -248,12 +239,16 @@ export class SpeechCapture {
     this.stopping = this.stopCapture({preserveStream}).finally(() => { this.stopping = null; });
     return this.stopping;
   }
+  async pause(){this.paused=true;await this.stop();this.onStatus('Audio paused · resume when ready');this.onDiagnostics({phase:'paused',status:'Audio paused · resume when ready',level:0,speaking:false});this.store.log('microphone.paused');}
+  async resume(){if(!this.paused)return;await this.start();this.store.log('microphone.resumed');}
   async stopCapture({preserveStream=false} = {}) {
     this.active = false;
     const stream = this.stream||this.retainedStream;
     this.stream = null;
     this.retainedStream=preserveStream&&stream?.getAudioTracks().some(t=>t.readyState==="live")?stream:null;
     stream?.getTracks().forEach(track => { track.onended = track.onmute = track.onunmute = null; });
+    // Release device access immediately; detector/recorder cleanup may be async.
+    if(!this.retainedStream)stream?.getTracks().forEach(track=>track.stop());
     clearInterval(this.audioWatchdog);
     this.native?.stop();
     this.native = null;
@@ -270,7 +265,6 @@ export class SpeechCapture {
         this.recorder.onstop = resolve;
         this.recorder.stop();
       });
-    if(!this.retainedStream)stream?.getTracks().forEach((track) => track.stop());
     if(this.audioContext && this.audioContext.state!=="closed") await this.audioContext.close();
     this.audioContext=null;
     await Promise.allSettled(this.assetWrites);

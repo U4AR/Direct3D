@@ -1,0 +1,1 @@
+{"name":"draw3d-cloud-gateway","private":true,"type":"module","scripts":{"start":"node gateway.mjs","test":"node --test auth.test.mjs gateway.test.mjs presence.test.mjs"},"dependencies":{"google-auth-library":"10.5.0"}}

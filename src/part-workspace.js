@@ -74,12 +74,16 @@ export function initPartWorkspace({studio,store,card}){
  const selection=studio.desktopSelectionChanged;studio.desktopSelectionChanged=s=>{selection?.(s);if(s?.nativeBodyId)editBody(s.nativeBodyId);};
  let lastParts;
  function renderParts(){
-  const solids=store.session.desktopSolids||[],locked=!!studio.aiDraftReview?.active||!!studio.decisionLab?.busy,signature=JSON.stringify([locked,solids.map(s=>[s.id,s.version,s.name,s.figureIds])]);
+  const models=studio.surfaceModels?.()||[],solids=(store.session.desktopSolids||[]).filter(s=>models.some(m=>!m.hidden&&(s.bodyId===m.nativeId||s.id===m.id))),native=models.filter(m=>!m.hidden&&!solids.some(s=>s.bodyId===m.nativeId||s.id===m.id)),locked=!!studio.aiDraftReview?.active||!!studio.decisionLab?.busy,signature=JSON.stringify([locked,solids.map(s=>[s.id,s.version,s.name,s.figureIds]),native.map(m=>[m.id,m.version,m.name])]);
   if(signature===lastParts)return;lastParts=signature;partList.replaceChildren();
-  if(!solids.length){const empty=document.createElement('p');empty.textContent='No solid bodies';partList.append(empty);}
+  if(!solids.length&&!native.length){const empty=document.createElement('p');empty.textContent='No solid bodies';partList.append(empty);}
   for(const solid of solids){
    const b=document.createElement('button');b.type='button';b.append(icon('parts'),solid.name||'Body');b.title='Edit source dimensions';b.disabled=locked;b.dataset.partId=solid.id;
    b.onclick=()=>{editBody(solid.bodyId,true);const source=solid.figureIds?.find(id=>studio.desktopDrawing.summary().some(f=>f.id===id&&!f.hidden));if(source){properties.root.open=true;studio.desktopEditing.setMode('cad');studio.desktopDrawing.select(source);}};partList.append(b);
+  }
+  for(const model of native){
+   const b=document.createElement('button');b.type='button';b.append(icon('parts'),model.name||'Body');b.title='Select this body for the next design step';b.disabled=locked;b.dataset.partId=model.id;
+   b.onclick=()=>{studio.objects?.select(model.id);studio.nativeSelection?.setModel?.(model);$('#decision-instruction').focus();};partList.append(b);
   }
  }
  const tools=menu('Tools','part-tools'),construction=menu('Sketch geometry'),support=menu('Drawing support'),view=menu('View');
@@ -111,14 +115,14 @@ export function initPartWorkspace({studio,store,card}){
  settings.content.append(options.root,voice.root,activity.root,feedback.root);
  const dock=document.createElement('div');dock.id='part-composer';dock.setAttribute('role','group');dock.setAttribute('aria-label','Part instructions');
  const mic=$('#mic'),micWrap=document.createElement('div');micWrap.className='part-mic';micWrap.append(mic,icon('mic'));
- const instruction=$('#decision-instruction');instruction.rows=1;instruction.placeholder='Describe a change…';instruction.setAttribute('aria-label','Part instruction');
+ const instruction=$('#decision-instruction');instruction.rows=1;instruction.placeholder='Sketch or describe the next design step…';instruction.setAttribute('aria-label','Next collaborative design step');
  const solidify=document.createElement('button');solidify.id='part-solidify';solidify.type='button';solidify.append(icon('check'),'Solidify');solidify.title='Keep this part and begin a new modeling step';solidify.disabled=true;
  const retryVoice=document.createElement('button');retryVoice.type='button';retryVoice.hidden=true;retryVoice.textContent='Retry voice';retryVoice.title='Retry the saved instruction';
  const create=document.createElement('button');create.id='part-create';create.type='button';create.textContent='Create 3D';
  const originOpt=document.createElement('label'),originInput=document.createElement('input');originInput.type='checkbox';originInput.checked=store.session.alignFirstBody===true;originInput.onchange=()=>{store.session.alignFirstBody=originInput.checked;void store.flush();};originOpt.append(originInput,' Center the first closed sketch on the origin');options.content.append(originOpt);
  const chat=initPartChat({studio,store,header:$('.header-actions')});
  const state=document.createElement('output');state.id='part-state';state.setAttribute('aria-live','polite');studio.container.append(state);
- const live=$('#decision-live-speech');dock.append(micWrap,instruction,retryVoice,create,solidify);studio.container.append(dock,live);
+ const live=$('#decision-live-speech');dock.append(micWrap,...($('#mic-pause')?[$('#mic-pause')]:[]),instruction,retryVoice,create,solidify);studio.container.append(dock,live);
  // Transient preview controls are separate from the persistent part commit.
  right.hidden=true;renderParts();
  const menus=[files,settings,tools];

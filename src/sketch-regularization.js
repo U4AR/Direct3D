@@ -35,7 +35,10 @@ function mirrorOutline(edit, points, smooth, axis) {
   const paired=symmetricOutlineKnots(inFrame,bounds(inFrame).span*.002);
   if(paired&&paired.length>=4&&paired.length<=64){knots=paired;n=paired.length;best.offset=0;}
  }
- const tangent=knots.map((_,i)=>sub(knots[(i+1)%n],knots[(i+n-1)%n]).map(v=>v/6));
+ // Unevenly spaced fitted knots need bounded handles. Uniform Catmull-Rom
+ // handles overshoot tiny corner spans and can make an otherwise simple
+ // mirrored outline loop across itself when it is extruded.
+ const tangent=knots.map((p,i)=>{const before=knots[(i+n-1)%n],after=knots[(i+1)%n],d=sub(after,before),size=length(d),limit=Math.min(length(sub(p,before)),length(sub(after,p)))/3;return d.map(v=>size?v*limit/size:0);});
  const segments=knots.map((a,i)=>{
   const j=(i+1)%n,b=knots[j],h=smooth?tangent[i]:sub(b,a).map(v=>v/3);
   return [...a,...add(a,h),...sub(b,smooth?tangent[j]:h),...b];

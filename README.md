@@ -1,5 +1,25 @@
 # Draw3D spatial studio
 
+Draw3D is a harness for human and AI collaboration on CAD design. Sketch, type
+or speak the next design step, inspect the result, and continue editing the same
+2D profiles and 3D bodies. Existing geometry, dimensions and inferred symmetry
+remain editable throughout the workflow.
+
+[Live app](https://draw3d-313721568883.us-central1.run.app) ·
+[Cloud deployment and authentication](deploy/cloud/README.md) ·
+[Noncommercial license](LICENSE.md) · [License scope and exceptions](NOTICE.md)
+
+The hosted app requires Google sign-in and an invitation code, with a private
+workspace per account and a maximum of two active users. Credentials are kept
+on the server. The application source is available under **PolyForm
+Noncommercial 1.0.0**; independently licensed components retain their licenses.
+
+Use the view cube in the upper-right of the desktop viewport to drag the view
+around the current center. Click a cube face or choose Front, Back, Top, Bottom,
+Left or Right for a standard view; the home button restores an isometric view.
+Keyboard users can focus the cube and use the arrow keys or Home. View changes
+preserve geometry and zoom.
+
 ## Server modeling (Blender + FreeCAD)
 
 The production backend runs Blender 4.5.9 LTS and FreeCAD 1.1.4 in separate Linux containers. Desktop and Quest display the same native results after each AI or manual operation. Voice audio and drawings go directly to the model with measured scene context; no transcription service is required. Features, dimensions, undo/history and native/interchange exports are supported. See [server deployment](deploy/README.md), [container configuration](compose.yaml) and [open-source notices](deploy/OPEN-SOURCE.md). For a remote Quest use the authenticated HTTPS deployment. The local development instructions below remain available.
@@ -18,7 +38,10 @@ npm run dev
 
 Open http://localhost:5173 on desktop. Drag to draw on the selected Z plane, change the plane to add depth, and use **Orbit** to inspect. **Load sample sketch** loads a real spatial stroke model for exercising the depth pipeline. It replaces the current drawing; historical strokes remain in the event log.
 
-The active source workspace is **`I:/Projects/Draw3d`**. Dependencies, prepared public assets and the latest production bundle are stored here as ordinary folders. The older D: and C: projects are snapshots. See `CONTINUE-HERE.md` for this update and excluded private files. Browser IndexedDB data remains in its existing browser profile.
+Prepared CAD assets and native runtimes are not committed. Use the setup and
+deployment scripts to install them; the locked manifests and pinned upstream
+revisions identify the dependencies. Private recordings, runtime data and
+credentials are excluded from this repository.
 
 ## Quest 3
 

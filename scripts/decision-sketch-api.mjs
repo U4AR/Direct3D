@@ -1,5 +1,7 @@
 import {sketchTaskQuestion,formQuestion,subjectQuestion} from './sketch-task.mjs';
 import {readProvider} from './provider-read.mjs';
+import {cloudVertexReady} from './vertex-cloud.mjs';
+import {vertexDecisions} from './vertex-decisions.mjs';
 import {validateSurfaceScene,surfaceProjectionCandidates,surfaceSceneCatalog} from '../src/image-surface-pick.js';
 import {planeSupportQuestion,planeProjectionCandidates} from './decision-plane-support.mjs';
 import {originPlacementContext,applyOriginPlacement} from './decision-origin-placement.mjs';
@@ -148,7 +150,7 @@ export function fitDecisionResponse(data,groups,response){
 
 export async function runSketchDecisions(data,{fetcher=fetch,apiKey=process.env.OPENAI_API_KEY,signal,recordingId,save=true}={}){
 
- if(!apiKey)throw Error('The backend OpenAI API key is not configured');
+ if(!apiKey&&!cloudVertexReady())throw Error('The backend OpenAI API key is not configured');
 
  const started=performance.now();validateDecisionInput(data);const corrections=await matchingDrawingCorrections(data,{recordingId});const {groups,body}=buildDecisionRequest({...data,userCorrections:corrections}),id=randomUUID(),folder=path.resolve(process.env.SESSION_DIR||'sessions','decision-sketches',id);
 
@@ -158,9 +160,13 @@ export async function runSketchDecisions(data,{fetcher=fetch,apiKey=process.env.
 
  let response;
 
- try{const sent=performance.now(),{http,raw}=await readProvider(fetcher,'https://api.openai.com/v1/decisions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+apiKey},body:JSON.stringify(body),signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000)},async http=>({http,raw:await http.text()}),{stage:'Sketch interpretation'});try{response=JSON.parse(raw);}catch{throw Error('Decisions API returned a non-JSON response (HTTP '+http.status+'); request saved, no geometry changed');}await saveJSON('response',response);if(!http.ok)throw Error('Decisions API request failed (HTTP '+http.status+'); '+(response.error?.code||'check backend access'));
+ try{const sent=performance.now();
+  if(!apiKey&&cloudVertexReady())response=await vertexDecisions(body,{fetcher,signal});
+  else try{const {http,raw}=await readProvider(fetcher,'https://api.openai.com/v1/decisions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+apiKey},body:JSON.stringify(body),signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000)},async http=>({http,raw:await http.text()}),{stage:'Sketch interpretation'});try{response=JSON.parse(raw);}catch{throw Error('Decisions API returned a non-JSON response (HTTP '+http.status+'); request saved, no geometry changed');}if(!http.ok){const error=Error('Decisions API request failed (HTTP '+http.status+'); '+(response.error?.code||'check backend access'));error.status=http.status;throw error;}}
+  catch(error){if(signal?.aborted||!cloudVertexReady()||error.status&&![408,429,500,502,503,504].includes(error.status))throw error;response=await vertexDecisions(body,{fetcher,signal});}
+  await saveJSON('response',response);
 
-  const apiMs=performance.now()-sent,result=fitDecisionResponse(data,groups,response),report={...result,id,usage:response.usage,cost:decisionCost(response.usage),timings:{apiMs,fitMs:performance.now()-sent-apiMs,totalMs:performance.now()-started},input:{matchedUserCorrections:corrections.length,groupCount:groups.length,strokeCount:data.strokes.length,questionCount:body.questions.length,imageCount:body.input.flatMap(m=>m.content).filter(p=>p.type==='input_image').length},recordingId};await saveJSON('result',report);return report;
+  const apiMs=performance.now()-sent,result=fitDecisionResponse(data,groups,response),report={...result,...(response.provider==='vertex-cloud'?{model:response.model,method:'Google Cloud fallback + numerical fitting'}:{}),id,usage:response.usage,cost:decisionCost(response.usage),timings:{apiMs,fitMs:performance.now()-sent-apiMs,totalMs:performance.now()-started},input:{matchedUserCorrections:corrections.length,groupCount:groups.length,strokeCount:data.strokes.length,questionCount:body.questions.length,imageCount:body.input.flatMap(m=>m.content).filter(p=>p.type==='input_image').length},recordingId};await saveJSON('result',report);return report;
 
  }catch(e){await saveJSON('failure',{message:e.message,usage:response?.usage,cost:decisionCost(response?.usage),elapsedMs:performance.now()-started});throw e;}
 

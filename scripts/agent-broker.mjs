@@ -1,4 +1,5 @@
 import {serverCadJob} from './cad-server-jobs.mjs';
+import {cloudVertexReady} from './vertex-cloud.mjs';
 import {saveActivity,recentActivity} from './session-activity.mjs';
 import {classifySketchSpeech} from './sketch-speech-intent.mjs';
 import {runExistingSketchEdit} from './existing-sketch-edit.mjs';
@@ -9,7 +10,7 @@ import {recoverableConnectionError} from '../src/request-recovery.js';
 import {saveTaskBenchmark,exportTaskBenchmark} from './harness-benchmark.mjs';
 import {inspectRuns,inspectRun} from './model-inspector.mjs';
 import {CONCEPT_MODE,conceptWorkflow,transcribeConceptAudio} from './concept-workflow.mjs';
-import {nativeApplicationRecovery,contextApplicationRecovery} from './native-recovery.mjs';
+import {nativeApplicationRecovery,contextApplicationRecovery,cadApplicationRecovery} from './native-recovery.mjs';
 import {withDesktopContext,recordContextApplication,recordContextClarification} from './desktop-context.mjs';
 import {runDesktopEdit,validateDesktopEvidence,directEvent} from './desktop-edit.mjs';
 import {appendActivity} from './agent-events.mjs';
@@ -273,7 +274,7 @@ export async function handleAgent(req, res) {
       if(route.startsWith('concept-')){
         if(!CONCEPT_MODE()&&route!=='concept-transcribe')throw Error('Concept workflow is available in the Terra version');
         if(route==='concept-restore'){validateDesktopEvidence(data.evidence);const concept=conceptWorkflow.restore(s.id,{snapshot:data.snapshot,evidence:data.evidence,recordingId:s.recordingId});send(res,200,{concept});return true;}
-        if(!process.env.OPENAI_API_KEY)throw Error('OpenAI backend key is missing');
+        if(!process.env.OPENAI_API_KEY&&!(route==='concept-transcribe'&&cloudVertexReady()))throw Error('OpenAI backend key is missing');
         let concept;
         if(route==='concept-transcribe'){
           const stream=data.streamTranscript===true&&data.sketchSpeech===true;
@@ -337,7 +338,7 @@ export async function handleAgent(req, res) {
         if(run.edit.visualizationRequest&&!data.error){run.confirmedConcept=conceptWorkflow.consumeForRun(s.id,data.visualizationConceptId,run);await directEvent(run,'Visualization tool result · user confirmed '+run.confirmedConcept.label,{tool:'generate_design_visualizations',conceptId:run.confirmedConcept.id,candidateId:run.confirmedConcept.candidateId},'tool-result');}
         const receiptFolder=path.resolve(process.env.SESSION_DIR||'sessions','desktop-edits',run.id,...(run.step>1?['turn-'+run.step]:[]));await mkdir(receiptFolder,{recursive:true});await writeFile(path.join(receiptFolder,'application.json'),JSON.stringify(data));
         run.appliedTurn=run.step;run.awaitingApplyAt=undefined;run.error=data.error?String(data.error).slice(0,2000):undefined;
-        const applicationError=run.error;run.contextRebasePending=contextApplicationRecovery(run,data);run.nativeRecoveryPending=nativeApplicationRecovery(run,data);
+        const applicationError=run.error;run.contextRebasePending=contextApplicationRecovery(run,data);run.nativeRecoveryPending=nativeApplicationRecovery(run,data)||cadApplicationRecovery(run,data);
         const application={review:data.review,appliedCount:data.appliedCount||0,error:applicationError,contextChange:run.contextRebasePending||undefined,nativeFeedback:run.nativeRecoveryPending||undefined};
         run.moves.push({turn:run.step,output:run.edit,application});
         await withDesktopContext(run.contextKey||run.recordingId||run.id,c=>recordContextApplication(c,{runId:run.id,turn:run.step,...application}));

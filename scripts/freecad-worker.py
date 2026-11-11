@@ -114,7 +114,9 @@ def imported(doc,source,folder,name):
         return obj
     vertices=source['vertices'];indices=source['indices']
     if len(indices)>120000:raise ValueError('A complex mesh is better edited in Blender; use native CAD primitives or a STEP/FreeCAD source for exact solid operations')
-    mesh=Mesh.Mesh(([fc(vertices[i:i+3]) for i in range(0,len(vertices),3)],[indices[i:i+3] for i in range(0,len(indices),3)]))
+    # PyCXX requires triangle tuples in indexed mesh topology. JSON supplies
+    # lists; passing them through fails before any requested CAD operation.
+    mesh=Mesh.Mesh(([fc(vertices[i:i+3]) for i in range(0,len(vertices),3)],[tuple(indices[i:i+3]) for i in range(0,len(indices),3)]))
     shape=Part.Shape();shape.makeShapeFromMesh(mesh.Topology,.01);shape=shape.removeSplitter()
     if shape.Shells and shape.isClosed():
         solids=[Part.Solid(shell) for shell in shape.Shells];shape=solids[0] if len(solids)==1 else Part.makeCompound(solids)

@@ -1,4 +1,5 @@
 import {recordSessionActivity} from './session-activity.js';
+import {ensureCadEditing} from './cad-readiness.js';
 import {coordinateChildPlacements} from './body-selection.js';
 import {initBodyColors} from './body-colors.js';
 import {syncAttachedStrokes} from './design-frame.js';
@@ -421,7 +422,7 @@ export function initAgentWorkspaces(studio, store, cad, notice, addTranscript) {
       if (mode !== userWorkspace) backgroundFrame(frame);
       frame.src = mode === "cad" ? "/cad/index.html" : "/sculpt/index.html";
     }
-    const deadline = Date.now() + 60000;
+    const deadline = Date.now() + 180000;
     while (!frame.contentWindow?.[key] || (mode === "sculpt" && sculptRestoring)) {
       if (Date.now() > deadline) throw Error(mode + " editor did not load");
       await sleep(150);
@@ -863,7 +864,7 @@ export function initAgentWorkspaces(studio, store, cad, notice, addTranscript) {
       case "draw3d_context":
         return {
           ...cad.context(),
-          supervision:studio.aiSupervision?.evidence()||{level:'balanced'},
+          supervision:studio.aiSupervision?.evidence()||{level:'low'},
           spatialDrawing:spatialWorkflow?{fit:spatialWorkflow.result,figures:store.session.spatialObjects,featureWeights:spatialWorkflow.weights}:undefined,
           capabilities:{spatialTools:true,objectManipulation:true,strokeReferences:true,spatialDrawing:!!spatialWorkflow,drawingTools:!!drawingTools},
           strokeWorkflow:studio.strokeWorkflow?.summary(),
@@ -898,6 +899,7 @@ export function initAgentWorkspaces(studio, store, cad, notice, addTranscript) {
       }
       case "cad_execute": {
         const api = await ensure("cad");
+        await ensureCadEditing(api);
         const payload = completeLineProfile(a.operation, a.payload, api.document());
         const result = api.execute(a.operation, payload, a.expectedVersion);
         const d = await settled(api);

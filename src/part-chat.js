@@ -2,10 +2,11 @@ const svgNS='http://www.w3.org/2000/svg';
 export function initPartChat({studio,store,header}){
  const rows=store.session.partConversation||=[];
  const pane=document.createElement('aside');pane.id='part-chat';pane.setAttribute('aria-label','Design conversation');
- const title=document.createElement('h2');title.textContent='Conversation';
+ const title=document.createElement('h2');title.textContent='Design together';
+ const intro=document.createElement('p');intro.className='part-collaboration-intro';intro.textContent='A human + AI CAD harness. Sketch or describe one step, review the result, then refine the same model. Existing parts stay editable.';
  const feed=document.createElement('div');feed.className='part-chat-feed';feed.setAttribute('role','log');
  const toggle=document.createElement('button');toggle.id='part-chat-toggle';toggle.textContent='Chat';toggle.type='button';header.append(toggle);
- document.querySelector('#app>main').append(pane);pane.append(title,feed);
+ document.querySelector('#app>main').append(pane);pane.append(title,intro,feed);
  function open(value){pane.hidden=!value;document.body.classList.toggle('part-chat-open',value);toggle.setAttribute('aria-expanded',String(value));studio.resize();}
  toggle.onclick=()=>open(pane.hidden);open(innerWidth>=1000);
  const urls=[];

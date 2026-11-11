@@ -1,4 +1,5 @@
 import {revolveSection} from './revolve-section.js';
+import {ensureCadEditing} from './cad-readiness.js';
 import {nativeExtrusionDepths,extrusionThickness} from './extrusion-depths.js';
 import {initDesktopEditing} from './desktop-editing.js';
 import {defaultSketchRules} from './sketch-component-edit.js';
@@ -7,6 +8,7 @@ import {verifyDecisionFigure} from './decision-sketch/harness.js';
 import * as T from 'three';
 import {initDesktopDimensions,dimensionChange} from './desktop-dimensions.js';
 export function initDesktopDrawing({studio,store,ensure,settled,refresh,renderer}){
+ const resolveCAD=ensure;ensure=async mode=>{const api=await resolveCAD(mode);if(mode==='cad')await ensureCadEditing(api);return api;};
  const figures=store.session.desktopFigures||=[];const group=new T.Group();group.name='Editable desktop drawing figures';studio.scene.add(group);const meshes=new Map();let temporaryHidden=new Set();let selected=null,userSelected=false,mode='select',start=null,working=false;
  const labels=document.createElement('div');labels.id='cad-dimension-labels';studio.container.append(labels);
  const bar=document.createElement('div');bar.id='desktop-cad-toolbar';bar.setAttribute('aria-label','CAD sketch tools');bar.innerHTML='<span>SKETCH</span><button data-tool="pen" id="cad-pen" title="Pen · freehand sketch (D)" aria-pressed="false"><span class="pen-symbol" aria-hidden="true">✎</span> Pen <kbd>D</kbd></button><button data-tool="erase" id="cad-eraser" title="Eraser (E)">⌫ Eraser <kbd>E</kbd></button><button data-tool="select" class="selected" title="Cursor · double-click canvas to switch pen">Cursor</button><button data-tool="line">╱ Line</button><button data-tool="reference">┄ Reference</button><button data-tool="rectangle">▭ Rectangle</button><button data-tool="circle">◯ Circle</button><button id="cad-dimensions-toggle" aria-pressed="true">Dimensions</button><button id="desktop-native-editor">Advanced CAD ↗</button>';studio.container.append(bar);const toolSize=new ResizeObserver(()=>studio.container.style.setProperty('--cad-tools-bottom',(bar.offsetTop+bar.offsetHeight+5)+'px'));toolSize.observe(bar);window.addEventListener('pagehide',()=>toolSize.disconnect(),{once:true});

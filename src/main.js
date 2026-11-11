@@ -1,5 +1,6 @@
 import {warmCadKernel} from './cad-kernel-module.js';
 import {initMicrophoneInput} from './microphone-input.js';
+import {initMicrophonePause} from './microphone-pause.js';
 import {workspaceNamespace,initWorkspaceModes} from './workspace-modes.js';
 import {initLiveShapes} from './live-shape-workflow.js';
 import {initStrokeWorkflow} from './stroke-workflow.js';
@@ -407,6 +408,11 @@ async function init() {
     (diagnostics) => {
       studio.setVoiceState(diagnostics);
       window.dispatchEvent(new CustomEvent("draw3d-microphone-state",{detail:diagnostics}));
+      if(diagnostics.phase==='starting'){$('#mic').textContent='Requesting microphone…';$('#mic').dataset.micState='requesting';}
+      if(diagnostics.phase==='captured'){$('#mic').textContent='Microphone allowed · starting…';$('#mic').dataset.micState='captured';}
+      if(['listening','no-signal'].includes(diagnostics.phase)){$('#mic').textContent='◼ Stop microphone';$('#mic').setAttribute('aria-pressed','true');$('#mic').dataset.micState='listening';}
+      if(['off','error'].includes(diagnostics.phase))$('#mic').dataset.micState=diagnostics.phase;
+      if(diagnostics.phase==='paused'){$('#mic').dataset.micState='paused';$('#mic').textContent='Resume microphone';$('#mic').setAttribute('aria-pressed','false');}
       updateMicRecovery(diagnostics);
       microphoneSession?.update(diagnostics);
       if(diagnostics.phase==="listening"&&speech?.active){$("#mic").textContent="◼ Stop microphone";$("#mic").setAttribute("aria-pressed","true");}
@@ -421,6 +427,7 @@ async function init() {
   );
   initMicrophoneInput(speech);
   microphoneSession=initMicrophoneSession(speech);
+  initMicrophonePause(speech,enabled=>microphoneSession.setEnabled(enabled));
   $("#mic").title="Stays enabled across reconnects and reloads once permission is granted. Stop microphone turns this off.";
   $("#session-id").textContent =
     `SESSION ${store.session.id.slice(0, 8).toUpperCase()}`;

@@ -37,11 +37,12 @@ body.part-workspace{--panel:#161d24;--field:#202a33;--border:#36424d;--subtle:#9
 .part-workspace #desktop-cad-toolbar .part-menu-content :is(#cad-plane-picker,#desktop-selection-tools){position:static;inset:auto;width:auto;display:block;border:0;background:none;transform:none;box-shadow:none;padding:0}
 .part-workspace #part-tools button{margin:2px;min-height:30px}
 .part-workspace .part-menu-content #desktop-edit-layer{display:flex}
-.part-workspace #part-composer{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:72;width:min(480px,calc(100% - 24px));box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:7px;border:1px solid #47545d;border-radius:10px;background:#1b242cf7;box-shadow:0 6px 22px #0004}
+.part-workspace #part-composer{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:72;width:min(680px,calc(100% - 24px));box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:7px;border:1px solid #47545d;border-radius:10px;background:#1b242cf7;box-shadow:0 6px 22px #0004}
 .part-workspace #decision-instruction{flex:1;min-width:0;height:34px;min-height:34px;max-height:70px;resize:none;border:0;background:transparent;padding:6px 2px;font:14px/22px Inter,"Segoe UI",sans-serif;color:#edf3f3}
 .part-workspace #part-solidify{display:inline-flex;gap:6px;align-items:center;padding:6px 12px;background:var(--focus);border:1px solid transparent;color:#142925;font-weight:650;min-height:34px;border-radius:6px}
 .part-workspace #part-solidify:disabled{background:#2b363c;color:#99a8ad}
 .part-mic{position:relative;width:34px;height:34px;flex:none}
+.part-workspace #mic-pause{font-size:11px;flex:none;padding:6px 9px;white-space:nowrap;min-height:34px}.part-workspace #mic-pause[aria-pressed=true]{color:#f5dbb0;border-color:#95774d}.part-collaboration-intro{font-size:12px;line-height:1.55;color:var(--subtle);padding:0 16px 12px;margin:0;border-bottom:1px solid var(--border)}
 .part-workspace #mic{width:34px;height:34px;min-height:34px;margin:0;padding:0;border:0;background:#2b363e;border-radius:5px;font-size:0}
 .part-mic svg{pointer-events:none;position:absolute;inset:8px;color:#c4d0d6}
 .part-mic:has([aria-pressed=true]) svg,.part-mic:has(.active) svg{color:#99f1cb}

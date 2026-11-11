@@ -1,6 +1,8 @@
 import {savedSessionCAD} from "./saved-session-cad.js";
 import { instructionForm } from "./typed-input.js";
 import { download } from "./storage.js";
+import {isCadDocument,waitForCadEditor} from './cad-readiness.js';
+import {loadingState} from './loading-state.js';
 // Full parametric CAD runs in an isolated browser frame on the headset.
 export function initFullCAD(studio, store, notice, addTranscript) {
   const selector = document.createElement("div");
@@ -18,6 +20,11 @@ export function initFullCAD(studio, store, notice, addTranscript) {
   document.body.append(shell);
   const frame = shell.querySelector("iframe"),
     status = shell.querySelector("#full-cad-status");
+  const retry=document.createElement('button');retry.id='cad-retry';retry.textContent='Retry CAD';retry.hidden=true;status.after(retry);
+  const loading=document.createElement('div');loading.id='cad-loading';loading.setAttribute('role','status');loading.innerHTML='<span class="loading-spinner" aria-hidden="true"></span><strong>Opening your CAD workspace</strong><p>Loading the editor and geometry tools…</p>';shell.querySelector('.cad-editor-body').append(loading);
+  const progress=message=>{status.hidden=false;status.textContent=message;loading.hidden=false;loading.querySelector('p').textContent=message;shell.setAttribute('aria-busy','true');loadingState('cad',message);};
+  const failed=error=>{status.hidden=false;status.textContent=error.message;loading.hidden=true;retry.hidden=false;shell.setAttribute('aria-busy','false');loadingState('cad',error.message,'error');};
+  retry.onclick=()=>{initialization=null;initialized=false;ready=false;retry.hidden=true;progress('Retrying CAD editor…');frame.src='/cad/index.html?retry='+Date.now();};
   let ready = false,
     opening = false,
     latestDocument = null;
@@ -82,7 +89,7 @@ export function initFullCAD(studio, store, notice, addTranscript) {
     if (!shell.hidden) updateContext();
   }, 500);
   async function ensure() {
-    if (!frame.getAttribute("src")) frame.src = "/cad/index.html";
+    if (!frame.getAttribute("src")){progress('Loading CAD editor and geometry tools…');frame.src = "/cad/index.html";}
   }
   async function open() {
     frame.style.cssText = "";
@@ -141,12 +148,8 @@ export function initFullCAD(studio, store, notice, addTranscript) {
   let initialization, initialized = false, saveSequence = 0;
   const pause = () => new Promise(resolve => setTimeout(resolve, 50));
   async function initializeProject() {
-    const deadline = Date.now() + 45000;
-    const editor = () => frame.contentWindow?.__draw3dCAD;
-    while (!editor() || frame.contentDocument.querySelector('[aria-label="Restoring workspace"]')) {
-      if (Date.now() >= deadline) throw Error("CAD editor did not initialize");
-      await pause();
-    }
+    const api=await waitForCadEditor(frame,{onProgress:progress}),editor=()=>api;
+    const deadline=Date.now()+180000;progress('Opening your saved CAD project…');
     const session = store.session;
     if (session.freshCAD) {
       await editor().create("Collaborative canvas " + session.id.slice(0,8), "mm");
@@ -168,11 +171,14 @@ export function initFullCAD(studio, store, notice, addTranscript) {
       }
     }
     initialized = true;
+    ready=true;status.hidden=true;loading.hidden=true;retry.hidden=true;shell.setAttribute('aria-busy','false');loadingState('cad','CAD workspace ready','ready');
   }
   function projectReady() {
-    return initialization ||= initializeProject().catch(error => { initialization = null; throw error; });
+    return initialization ||= initializeProject().catch(error => { initialization = null; failed(error);throw error; });
   }
-  frame.addEventListener("load", () => void projectReady().catch(error => notice(error.message,true)));
+  // The initial about:blank load is not a CAD launch. Starting its timeout can
+  // produce a false failure before the real iframe is requested.
+  frame.addEventListener("load", () => {if(isCadDocument(frame))void projectReady().catch(()=>{});});
   window.addEventListener("message", async (event) => {
     if (
       event.origin !== location.origin ||
@@ -182,9 +188,11 @@ export function initFullCAD(studio, store, notice, addTranscript) {
       return;
     const { type, data } = event.data;
     if (type === "ready") {
-      try { await projectReady(); } catch (error) { notice(error.message,true); return; }
+      try { await projectReady(); } catch { return; }
       ready = true;
       status.hidden = true;
+    } else if(type==='command-error'){
+      store.log('cad.command.error',data);
     } else if (type === "project") {
       if (!initialized || frame.contentWindow.__draw3dCAD?.document()?.projectId !== data.projectId) return;
       const sequence = ++saveSequence;

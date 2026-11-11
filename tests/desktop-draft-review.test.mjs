@@ -16,3 +16,4 @@ test('a failed follow-up restores the previous unaccepted part and retains new u
  assert.equal(f.writes.at(-1).desktopFigures.length,0);
  assert.equal(await d.accept(),true);
 });
+test('a clean starting draft can roll back its first rejected construction without losing verified earlier geometry',async()=>{const f=fixture();f.store.session.desktopFigures=[{id:'kept-profile'}];const d=createDraftSession(f.store,f.options);await d.begin('extrude');assert.equal(await d.checkpoint(),null);const point=await d.checkpoint({includeClean:true});f.store.session.desktopFigures.push({id:'bad-solid'});d.markApplied();await d.restoreCheckpoint(point);assert.deepEqual(f.store.session.desktopFigures,[{id:'kept-profile'}]);assert.equal(d.hasChanges,false);assert.equal(await d.accept(),false);});
